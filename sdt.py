@@ -19,7 +19,7 @@ class SDT(nn.Module):
     depth: int
     is_discrete: bool
     """
-    Store parameters to compute probabalistic routing for each internal
+    Store parameters to compute probabilistic routing for each internal
     node and final policy distribution.
     """
     def setup(self):
