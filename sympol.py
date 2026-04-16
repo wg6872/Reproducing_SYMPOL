@@ -4,14 +4,15 @@ from flax import struct
 
 # Note: By defining the SYMPOL class as a flax.struct, we can apply automatic differentiation to the tree
 # Source: https://flax.readthedocs.io/en/stable/api_reference/flax.struct.html
-@struct.dataclass
-class SYMPOL():
-    def __init__(self, random_key, **kwargs):
-        self.num_states = kwargs["obs_dim"]
-        self.num_actions = kwargs["action_dim"]
-        self.depth = kwargs["depth"]
-        self.action_type = kwargs["action_type"]
+@struct.dataclass(frozen=False)
+class SYMPOL:
+    # This is necessary to resolve bugs regarding immutability of the SYMPOL object
+    num_states: int = struct.field(pytree_node=False)
+    num_actions: int = struct.field(pytree_node=False)
+    depth: int = struct.field(pytree_node=False)
+    action_type: str = struct.field(pytree_node=False)
 
+    def init(self, random_key, *args):
         # Note: To minimize variance from the original paper, we split the key the same way despite not explicitly using multiple estimators in our code
         # Note: log_std_dev_PRNG_key is only necessary to estimate the distribution of continuous-action leaves
         (
@@ -79,10 +80,10 @@ class SYMPOL():
 
         for i in range(self.num_leaves):
             for d in range(1, self.depth + 1):
-                leaf_decisions.at[i, d - 1].set(
+                leaf_decisions = leaf_decisions.at[i, d - 1].set(
                     jnp.floor(i / (2 ** (self.depth - d))) % 2
                 )
-                leaf_internal_nodes.at[i, d - 1].set(
+                leaf_internal_nodes = leaf_internal_nodes.at[i, d - 1].set(
                     (2 ** (d - 1) + jnp.floor(i / (2 ** (self.depth - (d - 1)))) - 1).astype(jnp.int32)
                 )
 
@@ -128,7 +129,7 @@ class SYMPOL():
         # Source: https://docs.jax.dev/en/latest/higher-order.html#straight-through-estimator-using-stop-gradient
         feature_entmax = entmax15JAX(feature_assignments)
         feature_hardmax = jax.nn.one_hot(
-            jnp.argmax(feature_assignments, axis=2), num_classes=self.num_states
+            jnp.argmax(feature_assignments, axis=-1), num_classes=self.num_states
         )
 
         # Shape: [i, s]
@@ -137,9 +138,9 @@ class SYMPOL():
         internal_node_thresholds = jnp.einsum("is,is->i", threshold_values, feature_assignments)
         observed_state_values = jnp.einsum("bs,is->bi", inputs, feature_assignments)
 
-        # TODO: The original codebase uses soft_sign() for some reason? Why?
+        # The original codebase uses soft_sign(), which is equivalent
         internal_node_results_sigmoid = jax.nn.sigmoid(internal_node_thresholds - observed_state_values)
-        internal_node_results_sigmoid_round = jax.round(internal_node_results_sigmoid)
+        internal_node_results_sigmoid_round = jnp.round(internal_node_results_sigmoid)
 
         # Shape: [b, i]
         # Straight-Through estimator excludes rounding from backpropagation calculation --> differentiates sigmoid approximation
@@ -152,7 +153,7 @@ class SYMPOL():
         # Shape: [b, l]
         indicators = jnp.prod(
             ((1 - leaf_decisions) * internal_node_results_to_leaves + leaf_decisions * (1 - internal_node_results_to_leaves)),
-            axis=3,
+            axis=2,
         )
 
         # To get the final vector of actions, we sum across all the leaf outputs
