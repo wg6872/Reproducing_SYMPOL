@@ -49,6 +49,7 @@ import copy
 
 OBSERVATION_LABELS = {
     'CartPole-v1': ['cart_position', 'cart_velocity', 'pole_angle', 'pole_angular_velocity'],
+    'MountainCarContinuous-v0': ['car_position', 'car_velocity'],
     'LunarLander-v2': ['x', 'y', 'velocity_x', 'velocity_y', 'angle', 'angular_velocity',
                        'leg_1_ground_contact', 'leg_2_ground_contact']
 }
