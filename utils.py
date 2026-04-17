@@ -47,11 +47,15 @@ from gymnax.environments import spaces as spaces_gymnax
 
 import copy
 
+# cannot put obs labels on other minigrid environments
 OBSERVATION_LABELS = {
     'CartPole-v1': ['cart_position', 'cart_velocity', 'pole_angle', 'pole_angular_velocity'],
     'MountainCarContinuous-v0': ['car_position', 'car_velocity'],
     'LunarLander-v2': ['x', 'y', 'velocity_x', 'velocity_y', 'angle', 'angular_velocity',
-                       'leg_1_ground_contact', 'leg_2_ground_contact']
+                       'leg_1_ground_contact', 'leg_2_ground_contact'],
+    'Pendulum-v1': ['x', 'y', 'angular_velocity'],
+    'Acrobot-v1': ['cos_theta1', 'sin_theta1', 'cos_theta2', 'sin_theta2', 'angular_velocity_theta1'
+                   'angular_velocity_theta2']
 }
 
 
