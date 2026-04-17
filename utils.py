@@ -47,7 +47,11 @@ from gymnax.environments import spaces as spaces_gymnax
 
 import copy
 
+<<<<<<< HEAD
 # can't have observation labels for minigrid environments.
+=======
+# cannot put obs labels on other minigrid environments
+>>>>>>> main
 OBSERVATION_LABELS = {
     'CartPole-v1': ['cart_position', 'cart_velocity', 'pole_angle', 'pole_angular_velocity'],
     'MountainCarContinuous-v0': ['car_position', 'car_velocity'],
@@ -794,4 +798,8 @@ def plot_decision_tree_soft(split_values, split_indices, leaf_values, image_path
     node_count = count_nodes(tree_representation)
     plot_path = plot_tree_from_representation_soft(tree_representation, image_path, filename_appendix='', observation_labels=observation_labels)
     
+<<<<<<< HEAD
     return plot_path, node_count['internal'] + node_count['leaf']
+=======
+    return plot_path, node_count['internal'] + node_count['leaf']
+>>>>>>> main
