@@ -10,6 +10,7 @@ import wandb
 from minigrid.wrappers import OneHotPartialObsWrapper, ViewSizeWrapper
 from env_wrappers import FlatCurrentReducedWrapper, NormalizeWrapperLunarLander
 from sdt_ppo_config import get_args, get_sdt_params, get_mlp_params
+from sdt import Actor_SDT, Critic_SDT
 
 # Fix OOM issues
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "0"
@@ -37,8 +38,9 @@ def make_env(env_id, view_size=3):
 
 """
 Creates metadata for the action space, including a mapping that limits
-unnecessary exploration costs for certain environments. These are not
-specified in the paper and mostly kept the same for reproducibility.
+unnecessary exploration costs for certain environments. These mappings
+are not specified in the paper and mostly kept the same for
+reproducibility.
 
 Args:
     env_id: ID of the environment
@@ -67,7 +69,7 @@ def get_action_mapping(env_id, action_space):
         return 5, [0, 1, 2, 3, 5], True
 
     action_dim = action_space.n
-    return action_dim, list(range(action_dim)), False\
+    return action_dim, list(range(action_dim)), False
 
 def main():
     args = get_args()
@@ -87,6 +89,53 @@ def main():
                 save_code=True, 
             )
     
+    actor = Actor_SDT(action_dim, actor_params['depth'], is_discrete)
+    if args.critic == 'sdt':
+        critic = Critic_SDT(critic_params)
+    else:
+        # TODO: pull Ryan's code for the MLP
+        # critic = Critic_MLP()
+        critic = None
+    
+    # IDK YET IF THIS IS IMPORTANT BUT ITS HERE
+    #learning_rate_actor = args.learning_rate_actor
+    #args.accumulate_gradients_every = 1
+    
+      critic_state = TrainState.create(
+                apply_fn=None,
+                params=critic.init(critic_key, jnp.array([envs.single_observation_space.sample()])),
+                tx=optax.chain(
+                    optax.clip_by_global_norm(args.max_grad_norm), optax.adam(learning_rate=args.learning_rate_critic)
+                ),
+            )    
+      
+      actor_state = ActorTrainState.create(
+                    apply_fn=None,
+                    params=actor.init(actor_key, jnp.array([envs.single_observation_space.sample()])),
+                    tx=optax.chain(
+                        optax.clip_by_global_norm(args.max_grad_norm),
+                        optax.inject_hyperparams(optax.adam)(learning_rate_actor),
+                    ),
+                    grad_accum=jax.tree.map(
+                        jnp.zeros_like, actor.init(actor_key, jnp.array([envs.single_observation_space.sample()]))
+                    ),
+                    indices=None,
+                )  
+      
+      critic.apply = jax.jit(critic.apply)
+      actor.apply = jax.jit(actor.apply)
+      
+              lr_scheduler = optax.contrib.reduce_on_plateau(patience=3, factor=0.5)
+        lr_scheduler_state = lr_scheduler.init(actor_state.params)
+        #actor.apply = jax.jit(actor.apply)
+        #critic.apply = jax.jit(critic.apply)
+            
+        episode_stats = EpisodeStatistics(
+            episode_returns=jnp.zeros(args.n_envs, dtype=jnp.float32),
+            episode_lengths=jnp.zeros(args.n_envs, dtype=jnp.int32),
+            returned_episode_returns=jnp.zeros(args.n_envs, dtype=jnp.float32),
+            returned_episode_lengths=jnp.zeros(args.n_envs, dtype=jnp.int32),
+        )
 
 if __name__ == '__main__':
     main()

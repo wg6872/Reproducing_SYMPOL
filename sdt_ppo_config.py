@@ -437,7 +437,7 @@ def get_mlp_params(env_id):
 def get_args():
     parser = argparse.ArgumentParser(description="PPO runner for SDT actor.")
     
-    parser.add_argument("--env_id", type=str, required=True, help="Ex. CartPole-v1")
+    parser.add_argument("--env_id", type=str, required=True, help="ex. CartPole-v1")
     parser.add_argument("--n_envs", type=int, default=8)
     parser.add_argument("--critic", type=str, required=True, help="sdt or mlp")
     parser.add_argument("--seed", type=int, default=1)
