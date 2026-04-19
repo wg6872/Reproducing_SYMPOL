@@ -1,7 +1,7 @@
 # env_wrappers.py
 # Author(s): Evan Soper
 # Environment wrappers for benchmarking PPO with SDT
-# Adapted from: https://github.com/s-marton/SYMPOL/blob/master/utils.py#L242
+# Taken from: https://github.com/s-marton/SYMPOL/blob/master/utils.py#L242
 
 import gymnasium as gym
 import numpy as np
