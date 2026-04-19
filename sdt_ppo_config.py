@@ -279,5 +279,6 @@ def get_args():
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--run_name", type=str, default="run")
     parser.add_argument("--exp_name", type=str, default="experiment")
+    parser.add_argument("--n_eval_episodes", type=str, required=True)
 
     return parser.parse_args()

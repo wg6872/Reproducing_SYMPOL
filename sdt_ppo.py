@@ -68,6 +68,8 @@ def setup():
     
     if args.critic == 'mlp':
         critic_params = get_mlp_params(args.env_id)
+    else:
+        critic_params = {}
     
     config = {**actor_params, **critic_params, **vars(args)}
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
@@ -123,13 +125,13 @@ def get_action_mapping(env_id, action_space):
         action_indices: map for model output => env actions; None action space unmodified
         is_discrete: True if the action space is discrete
     """
-    action_dim = action_space.n
-    TURN_LEFT, TURN_RIGHT, MOVE_FORWARD, PICKUP, _, TOGGLE, DONE = range(action_dim)
-    
     if isinstance(action_space, gym.spaces.Box):
         # if the action space is continuous
         action_dim = action_space.shape[-1]
         return action_dim, None, False
+    
+    action_dim = action_space.n
+    TURN_LEFT, TURN_RIGHT, MOVE_FORWARD, PICKUP, _, TOGGLE, DONE = range(7)
 
     if any(s in env_id for s in ['Crossing', 'DistShift', 'Empty', 'LavaGap', 'FourRooms', 'Dynamic-Obstacles']):
         # navigation only
@@ -143,7 +145,7 @@ def get_action_mapping(env_id, action_space):
     if any(s in env_id for s in ['UnlockPickup', 'DoorKey']):
         return 5, [TURN_LEFT, TURN_RIGHT, MOVE_FORWARD, PICKUP, TOGGLE], True
 
-    return action_dim, None, False
+    return action_dim, None, True
 
 def get_actor_and_critic_state(config, envs, action_dim, is_discrete):
     """
@@ -223,7 +225,7 @@ def compute_gae(config, critic_state, next_obs, next_done, storage):
     advantages = jnp.zeros((config['n_envs'],))
     dones = jnp.concatenate([storage.dones, next_done[None, :]], axis=0)
     values = jnp.concatenate([storage.values, next_value[None, :]], axis=0)
-    advantages = jax.lax.scan(compute_gae_once, advantages, (dones[1:], values[1:], values[:-1], storage.rewards), reverse=True)
+    _, advantages = jax.lax.scan(compute_gae_once, advantages, (dones[1:], values[1:], values[:-1], storage.rewards), reverse=True)
     
     storage = storage.replace(
         advantages=advantages,
@@ -380,19 +382,19 @@ def get_action(actor_state, critic_state, is_discrete, next_obs, next_done, stor
         obs=storage.obs.at[step].set(next_obs),
         dones=storage.dones.at[step].set(next_done),
         actions=storage.actions.at[step].set(action),
-        log_probs=storage.logprobs.at[step].set(log_prob),
+        log_probs=storage.log_probs.at[step].set(log_prob),
         values=storage.values.at[step].set(value.squeeze()),
     )
 
     return storage, action, key
 
-def rollout(config, actor_state, critic_state, action_indices, episode_stats, next_obs, next_done, storage, key, global_step, envs):
+def rollout(config, actor_state, critic_state, action_indices, is_discrete, episode_stats, next_obs, next_done, storage, key, global_step, envs):
     """Collect n_steps timesteps of experience from all envs."""
     for step in range(config['n_steps']):
         global_step += config['n_envs']
         
         # sample action and value estimate
-        storage, action, key = get_action(actor_state, critic_state, next_obs, next_done, storage, step, key)
+        storage, action, key = get_action(actor_state, critic_state, is_discrete, next_obs, next_done, storage, step, key)
         action = np.array(action)
         if action_indices is not None:
             # apply the mapping from output to action space
@@ -423,25 +425,35 @@ def rollout(config, actor_state, critic_state, action_indices, episode_stats, ne
         
     return episode_stats, next_obs, next_done, storage, key, global_step
 
-def evaluate_agent(actor_state, envs, config):
+def evaluate_agent(actor_state, config, is_discrete, action_indices):
+    env = make_env(config["env_id"])
     scores = []
 
     for _ in range(config["n_eval_episodes"]):
-        obs, _ = envs.reset()
-        done = False
-        total_reward = 0
+        obs, _ = env.reset()
+        done, trunc = False, False
+        total_reward = 0.0
 
-        while not done:
-            logits = actor_state.apply_fn(actor_state.params, np.array([obs]))
-            action = int(jnp.argmax(logits, axis=1)[0])
+        while not (done or trunc):
+            obs_batch = jnp.array([obs])
+            pol = actor_state.apply_fn(actor_state.params, obs_batch)
 
-            obs, reward, done, trunc, _ = envs.step(action)
+            if is_discrete:
+                action = int(jnp.argmax(pol, axis=-1)[0])
+                if action_indices is not None:
+                    action = action_indices[action]
+
+            else:
+                mean, _ = pol
+                action = np.array(mean[0])
+
+            obs, reward, done, trunc, _ = env.step(action)
             total_reward += reward
-            done = done or trunc
 
         scores.append(total_reward)
 
-    return np.mean(scores)
+    env.close()
+    return float(np.mean(scores))
 
 def main():
     config = setup()
@@ -457,16 +469,14 @@ def main():
     next_obs, _ = envs.reset(seed=config['env_seed'])
     next_done = np.zeros(config['n_envs']).astype(bool)
     batch_size = int(config['n_envs'] * config['n_steps'])
+    key = jax.random.PRNGKey(config["seed"])
     
     iteration = 1
+    last_eval = 0
     global_step = 0
     total_time = 0
     
     avg_episodic_return_list = []
-    
-    # dynamic learning rate for optimization efficiency and final accuracy
-    lr_scheduler = optax.contrib.reduce_on_plateau(patience=3, factor=0.5)
-    lr_scheduler_state = lr_scheduler.init(actor_state.params)
     
     episode_stats = EpisodeStatistics(
         episode_returns=jnp.zeros(config['n_envs'], dtype=jnp.float32),
@@ -476,14 +486,13 @@ def main():
     )
     
     while global_step < config['total_steps']:
-        wandb_log = {}
         start_time = datetime.now()
         
         # storage for data in a single rollout
         storage = Storage(
                 obs=jnp.zeros((config['n_steps'], config['n_envs']) + envs.single_observation_space.shape),
                 actions=jnp.zeros((config['n_steps'], config['n_envs']) + envs.single_action_space.shape, dtype=jnp.int32),
-                logprobs=jnp.zeros((config['n_steps'], config['n_envs'])),
+                log_probs=jnp.zeros((config['n_steps'], config['n_envs'])),
                 dones=jnp.zeros((config['n_steps'], config['n_envs'])),
                 values=jnp.zeros((config['n_steps'], config['n_envs'])),
                 advantages=jnp.zeros((config['n_steps'], config['n_envs'])),
@@ -492,16 +501,18 @@ def main():
         )
         
         actor_state, critic_state, episode_stats, next_obs, next_done, storage, key, global_step = rollout(
-            actor_state, critic_state, episode_stats, next_obs, next_done, storage, key, global_step
+            config, actor_state, critic_state, action_indices, is_discrete, episode_stats, next_obs, next_done, storage, key, global_step
         )
         
-        storage = compute_gae(critic_state, next_obs, next_done, storage)
+        storage = compute_gae(config, critic_state, next_obs, next_done, storage)
         
         actor_state, critic_state, loss, pg_loss, v_loss, entropy_loss, approx_kl, key = update_ppo(
+            config,
             actor_state,
             critic_state,
             storage,
-            key
+            key,
+            is_discrete
         )
         
         elapsed_time = datetime.now() - start_time
