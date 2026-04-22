@@ -300,7 +300,7 @@ def get_environment_bounds(envs):
                 args.action_indices = [0,1,2]
             elif "DoorKey" in args.env_id:
                 args.action_dim = 5
-                args.action_indices = [0,1,2,3,5]        
+                args.action_indices = [0,1,2,3,5]      
             else:
                 args.action_dim = envs.action_space.n
                 args.action_indices = [i for i in range(args.action_dim)]
@@ -464,7 +464,7 @@ def evaluate_agent(actor_state, env_id, n_episodes, name_appendix, seed=100):
                 numpy_clip = np.transpose(np.array(frames), (0, 3, 1, 2)) 
                 fps = 5 if 'MiniGrid' in env_id else 25
 
-                wandb.log({"gameplay_" + args.env_id + "_" + name_appendix + '_trial_ep' + str(episode_index): wandb.Video(numpy_clip, fps=fps, format="mp4")}, commit=False)
+                wandb.log({"gameplay" + name_appendix + '_trial_ep' + str(episode_index): wandb.Video(numpy_clip, fps=fps, format="mp4")}, commit=False)
             if episode_index==0:
                 image_path, node_count = plot_decision_tree(
                                                 split_values=actor_params['threshold_values'], 
@@ -665,6 +665,8 @@ if __name__ == "__main__":
                         actor_state, critic_state, next_obs, next_done, storage, step, key
                     )
                     action = np.array(action)
+                    if "DoorKey" in args.env_id:
+                        action = np.array([args.action_indices[single_action] for single_action in action])
 
                     next_obs, reward, next_done, trunc, info = envs.step(action)
 
@@ -789,7 +791,7 @@ if __name__ == "__main__":
                 n_steps_old = n_steps
             else:
                 if global_step == 0:
-                    rollout = create_rollout(n_steps, envs)
+                    rollout = create_rollout(n_steps, envs) 
                 current_eval = global_step // args.eval_freq            
             start_time_cleaned = time.time()
             
