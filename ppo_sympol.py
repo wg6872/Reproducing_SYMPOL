@@ -435,10 +435,6 @@ def evaluate_agent(actor_state, env_id, n_episodes, name_appendix, seed=100):
 
             action = np.array(action)
 
-            # We encounter issues with environment rendering without the following logic which adapts the action to feed into the envs
-            if args.env_id == "Pendulum-v1":
-                action = np.array(action, dtype=np.float32)
-
             next_obs, rewards, done, trunc, info = temp_env.step(action)
             
             running_reward += rewards
@@ -664,9 +660,11 @@ if __name__ == "__main__":
                     storage, action, key = get_action_and_value(
                         actor_state, critic_state, next_obs, next_done, storage, step, key
                     )
-                    action = np.array(action)
-                    if "DoorKey" in args.env_id:
-                        action = np.array([args.action_indices[single_action] for single_action in action])
+                    
+                    if args.env_id == "MiniGrid-DoorKey-5x5-v0":
+                        action = np.array([args.action_indices[single_action] for single_action in action], dtype=np.float64)
+                    else:
+                        action = np.array(action)
 
                     next_obs, reward, next_done, trunc, info = envs.step(action)
 
@@ -918,3 +916,5 @@ if __name__ == "__main__":
         envs.close()
 
         rewards.append(avg_score_list[-1])
+
+        

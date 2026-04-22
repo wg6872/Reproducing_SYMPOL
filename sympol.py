@@ -4,7 +4,7 @@ from flax import struct
 
 # Note: By defining the SYMPOL class as a flax.struct, we can apply automatic differentiation to the tree
 # Source: https://flax.readthedocs.io/en/stable/api_reference/flax.struct.html
-@struct.dataclass(frozen=False)
+@struct.dataclass
 class SYMPOL:
     # This is necessary to resolve bugs regarding immutability of the SYMPOL object
     num_states: int = struct.field(pytree_node=False)
@@ -23,23 +23,23 @@ class SYMPOL:
             log_std_dev_PRNG_key
         ) = jax.random.split(random_key, 5)
 
-        self.num_leaves = 2**self.depth
-        self.num_internal_nodes = 2**self.depth - 1
+        num_leaves = 2**self.depth
+        num_internal_nodes = 2**self.depth - 1
 
         # Initialize all tree parameters w.r.t. Normal distribution
         threshold_values = 0.00 + 0.05 * jax.random.normal(
             key=threshold_PRNG_key,
-            shape=[self.num_internal_nodes, self.num_states],
+            shape=[num_internal_nodes, self.num_states],
             dtype=jnp.float32
         )
         feature_assignments = 0.00 + 0.05 * jax.random.normal(
             key=feature_index_PRNG_key,
-            shape=[self.num_internal_nodes, self.num_states],
+            shape=[num_internal_nodes, self.num_states],
             dtype=jnp.float32
         )
         leaf_outputs = 0.00 + 0.05 * jax.random.normal(
             key=leaf_outputs_PRNG_key,
-            shape=[self.num_leaves, self.num_actions],
+            shape=[num_leaves, self.num_actions],
             dtype=jnp.float32
         )
         log_std_dev = 0.00 + 0.05 * jax.random.normal(
@@ -75,10 +75,12 @@ class SYMPOL:
             For each leaf, lists the node visited at every level to reach the leaf (pre-order indexing of internal nodes) 
         """
 
-        leaf_decisions = jnp.zeros((self.num_leaves, self.depth), dtype=jnp.float32)
-        leaf_internal_nodes = jnp.zeros((self.num_leaves, self.depth), dtype=jnp.int32)
+        num_leaves = 2**self.depth
 
-        for i in range(self.num_leaves):
+        leaf_decisions = jnp.zeros((num_leaves, self.depth), dtype=jnp.float32)
+        leaf_internal_nodes = jnp.zeros((num_leaves, self.depth), dtype=jnp.int32)
+
+        for i in range(num_leaves):
             for d in range(1, self.depth + 1):
                 leaf_decisions = leaf_decisions.at[i, d - 1].set(
                     jnp.floor(i / (2 ** (self.depth - d))) % 2
