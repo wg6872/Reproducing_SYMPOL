@@ -4,7 +4,7 @@
 # Adapted from: https://github.com/s-marton/SYMPOL/blob/master/ppo.py
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import jax
 import flax
@@ -14,6 +14,7 @@ import gymnasium as gym
 import optax
 import wandb
 from distrax import Categorical, MultivariateNormalDiag
+from functools import partial
 
 from flax.training.train_state import TrainState
 from minigrid.wrappers import OneHotPartialObsWrapper, ViewSizeWrapper
@@ -25,6 +26,9 @@ from mlp import Critic_MLP
 
 # Fix OOM issues
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "0"
+
+# TODO: replace when wandb project is made
+os.environ["WANDB_MODE"] = "offline"
 
 @flax.struct.dataclass
 class batch:
@@ -55,12 +59,29 @@ class Storage:
     returns: jnp.array
     rewards: jnp.array
 
+@flax.struct.dataclass
+class TrainConfig:
+    """
+    Apparently, we can't pass a dict into functions with a jax.jit decorator. So, this helper
+    class passes the data to the several functions called during training.
+    """
+    gamma: float
+    gae_lambda: float
+    clip_coef: float
+    ent_coef: float
+    vf_coef: float
+    minibatch_size: int
+    n_update_epochs: int
+    n_envs: int
+    norm_adv: bool
+
 def setup():
     """
     Setup an experiment run on Weights & Biases for visualization. 
 
     Returns:
-        dict with all hyperparameters and configuration details for this run.
+        dict with all hyperparameters and configuration details for this run,
+        dataclass containing hyperparameters for JAX compatibility.
     """
     args = get_args()
     
@@ -83,7 +104,19 @@ def setup():
         save_code=True, 
     )
     
-    return config
+    train_cfg = TrainConfig(
+        gamma=config['gamma'],
+        gae_lambda=config['gae_lambda'],
+        clip_coef=config['clip_coef'],
+        ent_coef=config['ent_coef'],
+        vf_coef=config['vf_coef'],
+        minibatch_size=config['minibatch_size'],
+        n_update_epochs=config['n_update_epochs'],
+        n_envs=config['n_envs'],
+        norm_adv=config['norm_adv'],
+    )
+    
+    return config, train_cfg
 
 def make_env(env_id, view_size=3):
     """
@@ -201,7 +234,7 @@ def compute_gae(config, critic_state, next_obs, next_done, storage):
     Compute Generalized Advantage Estimation (GAE) for a collected rollout.
 
     Args:
-        config: dict with run configuration details
+        config: dataclass with run configuration details
         critic_state: TrainState for the critic network
         next_obs: obs after final timestep of the rollout (n_envs, obs_dim)
         next_done: Done flags after final timestep (n_envs,)
@@ -216,13 +249,15 @@ def compute_gae(config, critic_state, next_obs, next_done, storage):
         nextdone, nextvalues, curvalues, reward = inp
         nextnonterminal = 1.0 - nextdone
 
-        delta = reward + config['gamma'] * nextvalues * nextnonterminal - curvalues
-        advantages = delta + config['gamma'] * config['gae_lambda'] * nextnonterminal * advantages
-        return advantages
+        delta = reward + config.gamma * nextvalues * nextnonterminal - curvalues
+        advantages = delta + config.gamma * config.gae_lambda * nextnonterminal * advantages
+        
+        # must return the next carry and output for scan to work
+        return advantages, advantages
     
     next_value = critic_state.apply_fn(critic_state.params, next_obs).squeeze()
 
-    advantages = jnp.zeros((config['n_envs'],))
+    advantages = jnp.zeros(next_done.shape, dtype=jnp.float32)
     dones = jnp.concatenate([storage.dones, next_done[None, :]], axis=0)
     values = jnp.concatenate([storage.values, next_value[None, :]], axis=0)
     _, advantages = jax.lax.scan(compute_gae_once, advantages, (dones[1:], values[1:], values[:-1], storage.rewards), reverse=True)
@@ -234,13 +269,16 @@ def compute_gae(config, critic_state, next_obs, next_done, storage):
     
     return storage
 
-@jax.jit
+# Apparently, built-in types need to be declared as static to use @jax.jit
+@partial(jax.jit, static_argnames=['config', 'is_discrete'])
 def get_ppo_loss(config, actor_state, critic_state, actor_params, critic_params, is_discrete, batch):
     """
     Compute the policy loss, which is used to update action probabilities; 
     value loss, which measures the difference between the critic's state
     value and the reward obtained; and KL divergence from a single minibatch obs.
     Actor and critic parameters are explicitly passed for gradient calculations.
+    
+    NOTE: config must be a dataclass for jax.jit
     
     Returns:
         total loss, (policy loss, value loss, entropy, KL divergence)
@@ -261,25 +299,29 @@ def get_ppo_loss(config, actor_state, critic_state, actor_params, critic_params,
     # estimate divergence from old policy
     approx_kl = ((ratio - 1) - log_ratio).mean()
 
-    if config['norm_adv']:
+    if config.norm_adv:
         mb_advantages = (batch.advantages - batch.advantages.mean()) / (batch.advantages.std() + 1e-8)
     else:
          mb_advantages = batch.advantages
 
     pol_loss = -mb_advantages * ratio
-    clipped_loss = -mb_advantages * jnp.clip(ratio, 1 - config['clip_coef'], 1 + config['clip_coef'])
+    clipped_loss = -mb_advantages * jnp.clip(ratio, 1 - config.clip_coef, 1 + config.clip_coef)
     pol_loss = jnp.maximum(pol_loss, clipped_loss).mean()
 
     v_loss = 0.5 * ((new_val - batch.returns) ** 2).mean()
 
     # total loss includes policy loss, entropy bonus, and value loss
-    loss = pol_loss - config['ent_coef'] * entropy + v_loss * config['vf_coef']
+    loss = pol_loss - config.ent_coef * entropy + v_loss * config.vf_coef
     
     return loss, (pol_loss, v_loss, entropy, jax.lax.stop_gradient(approx_kl))
 
-@jax.jit
+@partial(jax.jit, static_argnames=['config', 'is_discrete'])
 def update_ppo(config, actor_state, critic_state, storage, key, is_discrete):
-    """Train and update model parameters using one collected rollout (in storage)."""
+    """
+    Train and update model parameters using one collected rollout (in storage).
+    
+    NOTE: config must be a dataclass for jax.jit
+    """
     def prepare_data(x, perm, minibatch_size):
         """Flatten and segment batch data to pass minibatches into SGD."""
         x = x.reshape((-1,) + x.shape[2:])
@@ -301,7 +343,7 @@ def update_ppo(config, actor_state, critic_state, storage, key, is_discrete):
         perm = jax.random.permutation(subkey, batch_size)
 
         shuffled_storage = jax.tree_util.tree_map(
-            lambda x: prepare_data(x, perm, config['minibatch_size']),
+            lambda x: prepare_data(x, perm, config.minibatch_size),
             storage
         )
 
@@ -342,12 +384,12 @@ def update_ppo(config, actor_state, critic_state, storage, key, is_discrete):
         update_epoch,
         (actor_state, critic_state, key),
         xs=None,
-        length=config['n_update_epochs'],
+        length=config.n_update_epochs,
     )
 
     return actor_state, critic_state, loss, pg_loss, v_loss, entropy_loss, approx_kl, key
 
-@jax.jit
+@partial(jax.jit, static_argnames=['is_discrete'])
 def get_action(actor_state, critic_state, is_discrete, next_obs, next_done, storage, step, key):
     """
     Helper to sample an action and calculate the state value.
@@ -426,6 +468,7 @@ def rollout(config, actor_state, critic_state, action_indices, is_discrete, epis
     return episode_stats, next_obs, next_done, storage, key, global_step
 
 def evaluate_agent(actor_state, config, is_discrete, action_indices):
+    """NOTE: The only difference between SDT and D-SDT is logic in the evaluation."""
     env = make_env(config["env_id"])
     scores = []
 
@@ -456,17 +499,28 @@ def evaluate_agent(actor_state, config, is_discrete, action_indices):
     return float(np.mean(scores))
 
 def main():
-    config = setup()
+    config, train_config = setup()
 
-    raw_envs = [make_env(config['env_id']) for _ in range(config['n_envs'])]
+    raw_envs = [lambda: make_env(config['env_id']) for _ in range(config['n_envs'])]
     envs = gym.vector.AsyncVectorEnv(raw_envs)
+    
+    
+    print(f'{envs.num_envs} environments were successfully created.')
+    print(f'Obs. space: {envs.single_observation_space}')
+    print(f'Action space: {envs.single_action_space}')
     
     action_dim, action_indices, is_discrete = get_action_mapping(config['env_id'], envs.single_action_space)
     
+    print(f'Action space is disrete: {is_discrete}')
+    print(f'Action mapping: {action_indices}')
+    
     actor_state, critic_state = get_actor_and_critic_state(config, envs, action_dim, is_discrete)
     
+    print(f"The {config['actor']} actor was created with arch.: {jax.tree_util.tree_map(lambda x: x.shape, actor_state.params)}")
+    print(f"The {config['critic']} critic was created with arch.: {jax.tree_util.tree_map(lambda x: x.shape, critic_state.params)}")
+    
     # prepare parameters for training loop
-    next_obs, _ = envs.reset(seed=config['env_seed'])
+    next_obs, _ = envs.reset(seed=config['seed'])
     next_done = np.zeros(config['n_envs']).astype(bool)
     batch_size = int(config['n_envs'] * config['n_steps'])
     key = jax.random.PRNGKey(config["seed"])
@@ -474,9 +528,11 @@ def main():
     iteration = 1
     last_eval = 0
     global_step = 0
-    total_time = 0
+    # necessary to support arithmetic
+    total_time = timedelta(0)
     
     avg_episodic_return_list = []
+    eval = []
     
     episode_stats = EpisodeStatistics(
         episode_returns=jnp.zeros(config['n_envs'], dtype=jnp.float32),
@@ -487,11 +543,13 @@ def main():
     
     while global_step < config['total_steps']:
         start_time = datetime.now()
+        print(f'Training iteration {iteration} started at {start_time}.')
         
         # storage for data in a single rollout
+        action_dtype = jnp.int32 if is_discrete else jnp.float32
         storage = Storage(
                 obs=jnp.zeros((config['n_steps'], config['n_envs']) + envs.single_observation_space.shape),
-                actions=jnp.zeros((config['n_steps'], config['n_envs']) + envs.single_action_space.shape, dtype=jnp.int32),
+                actions=jnp.zeros((config['n_steps'], config['n_envs']) + envs.single_action_space.shape, dtype=action_dtype),
                 log_probs=jnp.zeros((config['n_steps'], config['n_envs'])),
                 dones=jnp.zeros((config['n_steps'], config['n_envs'])),
                 values=jnp.zeros((config['n_steps'], config['n_envs'])),
@@ -500,14 +558,20 @@ def main():
                 rewards=jnp.zeros((config['n_steps'], config['n_envs'])),
         )
         
-        actor_state, critic_state, episode_stats, next_obs, next_done, storage, key, global_step = rollout(
-            config, actor_state, critic_state, action_indices, is_discrete, episode_stats, next_obs, next_done, storage, key, global_step
+        episode_stats, next_obs, next_done, storage, key, global_step = rollout(
+            config, actor_state, critic_state, action_indices, is_discrete, episode_stats, next_obs, next_done, storage, key, global_step, envs
         )
         
-        storage = compute_gae(config, critic_state, next_obs, next_done, storage)
+        print(f'rollout completed with reward mu: {float(jnp.mean(storage.rewards))}, \
+              std: {float(jnp.std(storage.rewards))}, done count: {int(jnp.sum(storage.dones))}')
+        
+        storage = compute_gae(train_config, critic_state, next_obs, next_done, storage)
+        
+        print(f'gae: adv. mean={float(jnp.mean(storage.advantages))}, \
+              std={float(jnp.std(storage.advantages))}, ret. mean={float(jnp.mean(storage.returns))}')
         
         actor_state, critic_state, loss, pg_loss, v_loss, entropy_loss, approx_kl, key = update_ppo(
-            config,
+            train_config,
             actor_state,
             critic_state,
             storage,
@@ -515,6 +579,10 @@ def main():
             is_discrete
         )
         
+        print(f'PPO update: loss={float(jnp.mean(loss))}, pol_loss={float(jnp.mean(pg_loss))}, \
+            v_loss={float(jnp.mean(v_loss))}, entropy={float(jnp.mean(entropy_loss))}, \
+            approx_kl={float(jnp.mean(approx_kl))}')
+
         elapsed_time = datetime.now() - start_time
         total_time += elapsed_time
 
@@ -526,16 +594,18 @@ def main():
         
         # determine evaluation criteria
         is_first = (iteration == 1)
+        # entered a new evaluation "bucket"
         is_new = (current_eval > last_eval)
         is_final = (global_step + batch_size >= config["total_steps"])
 
         if is_first or is_new or is_final:
             last_eval = current_eval
-            render_now = config["render_each_eval"] or is_final
+            # render_now = config["render_each_eval"] or is_final
 
-            eval_score = evaluate_agent(actor_state, envs, config, render_now)
+            eval_score = evaluate_agent(actor_state, config, is_discrete, action_indices)
 
             print(f"[eval] step={global_step} score={eval_score}")
+            eval.append((global_step, eval_score))
 
             wandb.log({
                 "eval/score": eval_score,
@@ -544,6 +614,9 @@ def main():
             })
 
         iteration += 1
+    
+    return eval
         
 if __name__ == '__main__':
-    main()
+    eval = main()
+    print(eval)

@@ -274,11 +274,14 @@ def get_args():
     parser = argparse.ArgumentParser(description="PPO runner for SDT actor.")
     
     parser.add_argument("--env_id", type=str, required=True, help="ex. CartPole-v1")
-    parser.add_argument("--n_envs", type=int, default=8)
+    parser.add_argument("--actor", type=str, required=True, help="sdt or d-sdt")
     parser.add_argument("--critic", type=str, required=True, help="sdt or mlp")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--run_name", type=str, default="run")
     parser.add_argument("--exp_name", type=str, default="experiment")
-    parser.add_argument("--n_eval_episodes", type=str, required=True)
+    parser.add_argument("--n_eval_episodes", type=int, default=5)
+    parser.add_argument("--total_steps", type=int, default=1000000)
+    parser.add_argument("--clip_coef", type=int, default=0.1)
+    parser.add_argument("--eval_freq", type=int, default=50000)
 
     return parser.parse_args()
