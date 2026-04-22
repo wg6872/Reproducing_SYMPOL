@@ -13,7 +13,7 @@ class SYMPOL:
     action_type: str = struct.field(pytree_node=False)
 
     def init(self, random_key, *args):
-        # Note: To minimize variance from the original paper, we split the key the same way despite not explicitly using multiple estimators in our code
+        # Note: To minimize variance from the original paper, we split the key the same way despite not explicitly using multiple estimators in our code.
         # Note: log_std_dev_PRNG_key is only necessary to estimate the distribution of continuous-action leaves
         (
             _, 
