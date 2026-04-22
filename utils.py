@@ -54,7 +54,7 @@ OBSERVATION_LABELS = {
     'LunarLander-v2': ['x', 'y', 'velocity_x', 'velocity_y', 'angle', 'angular_velocity',
                        'leg_1_ground_contact', 'leg_2_ground_contact'],
     'Pendulum-v1': ['x', 'y', 'angular_velocity'],
-    'Acrobot-v1': ['cos_theta1', 'sin_theta1', 'cos_theta2', 'sin_theta2', 'angular_velocity_theta1'
+    'Acrobot-v1': ['cos_theta1', 'sin_theta1', 'cos_theta2', 'sin_theta2', 'angular_velocity_theta1',
                    'angular_velocity_theta2']
 }
 
@@ -389,7 +389,6 @@ class AutoResetWrapper(gym.Wrapper):
 def build_env(env_id, n_env, view_size=3):
     if n_env > 1: 
         env = gym.make(id=env_id) #, render_mode="rgb_array")
-
     else:
         env = gym.make(id=env_id, render_mode="rgb_array") #, render_mode="rgb_array")
 
