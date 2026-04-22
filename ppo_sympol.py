@@ -8,7 +8,7 @@ and are largely different from clean-rl's PPO. Moreover, we use the same Storage
 and results are saved the same way to properly reproduce the plots.
 
 Importantly, our contributions consists of the model definitions to fit our replicated model classes, 
-fixing several bugs in the original script (e.g. unstable training from NaN values, detailed in our writeup), 
+fixing several bugs in the original script (e.g. unused values, invalid typing; detailed in our writeup), 
 and augmenting the ppo training logic to fit our replication experiments.
 '''
 
