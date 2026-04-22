@@ -30,7 +30,7 @@ class SDT(nn.Module):
         if not self.is_discrete:
             self.log_std = nn.Dense(self.out_dim)
     
-    def _calc_leaf_probs(self, p_left, p_right, node_prob, node=0, depth=0):
+    def _calc_leaf_probs(self, p_left, p_right, node_prob, node=0, depth=0, max_path=False):
         """
         Helper to compute the probability of reaching each leaf.
 
@@ -40,31 +40,39 @@ class SDT(nn.Module):
             node:       node index (heap-ordered)
             node_prob:  probability of reaching this node (batch_size,)
             depth:      current tree depth
+            max_path:   route all prob. mass to the higher-prob. child
 
         Returns:
             probability of reaching each leaf (batch_size, num_leaves_in_subtree)
         """
         if depth == self.depth:
             return jnp.expand_dims(node_prob, axis=1)
-
-        p_left_child = node_prob * p_left[:, node]
-        p_right_child = node_prob * p_right[:, node]
+        
+        if max_path:
+            go_left = (p_left[:, node] >= p_right[:, node]).astype(node_prob.dtype)
+            # for hard routing, probability is 1 if the left child's routing 
+            # probability was higher in the soft tree
+            p_left_child = node_prob * go_left
+            p_right_child = node_prob * (1.0 - go_left)
+        else:
+            p_left_child = node_prob * p_left[:, node]
+            p_right_child = node_prob * p_right[:, node]
 
         left = 2 * node + 1
         right = 2 * node + 2
 
-        left_leaves = self._calc_leaf_probs(p_left, p_right, p_left_child, left, depth+1)
-        right_leaves = self._calc_leaf_probs(p_left, p_right, p_right_child, right, depth+1)
+        left_leaves = self._calc_leaf_probs(p_left, p_right, p_left_child, left, depth+1, max_path)
+        right_leaves = self._calc_leaf_probs(p_left, p_right, p_right_child, right, depth+1, max_path)
 
         return jnp.concatenate([left_leaves, right_leaves], axis=1)
 
-    def __call__(self, obs):
+    def __call__(self, obs, max_path=False):
         p_left = nn.sigmoid(self.internal(obs))
         p_right = 1 - p_left
         
         # probability of starting at the root is always 1
         root_prob = jnp.ones((obs.shape[0],))
-        leaf_probs = self._calc_leaf_probs(p_left, p_right, root_prob)
+        leaf_probs = self._calc_leaf_probs(p_left, p_right, root_prob, max_path=max_path)
         
         y_pred = self.leaves(leaf_probs)
         
@@ -83,8 +91,8 @@ class Critic_SDT(nn.Module):
     def setup(self):
         self.sdt = SDT(out_dim=1, depth=self.depth, is_discrete=True)
 
-    def __call__(self, x):
-        return self.sdt(x)
+    def __call__(self, x, max_path=False):
+        return self.sdt(x, max_path)
 
 """Actor wrapper for the SDT."""
 class Actor_SDT(nn.Module):
@@ -97,5 +105,5 @@ class Actor_SDT(nn.Module):
                        depth=self.depth, 
                        is_discrete=self.is_discrete)
 
-    def __call__(self, x):
-        return self.sdt(x)
+    def __call__(self, x, max_path=False):
+        return self.sdt(x, max_path)

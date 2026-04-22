@@ -4,6 +4,8 @@
 # Adapted from: https://github.com/s-marton/SYMPOL/blob/master/ppo.py
 
 import os
+import copy
+from functools import partial
 from datetime import datetime, timedelta
 
 import jax
@@ -14,7 +16,7 @@ import gymnasium as gym
 import optax
 import wandb
 from distrax import Categorical, MultivariateNormalDiag
-from functools import partial
+from flax.core import freeze, unfreeze
 
 from flax.training.train_state import TrainState
 from minigrid.wrappers import OneHotPartialObsWrapper, ViewSizeWrapper
@@ -467,10 +469,70 @@ def rollout(config, actor_state, critic_state, action_indices, is_discrete, epis
         
     return episode_stats, next_obs, next_done, storage, key, global_step
 
+def convert_to_discrete(params, is_discrete):
+    """
+    Helper function used in model evaluation to convert the optimized SDT to
+    a D-SDT.
+
+    Args:
+        params: FrozenDict of SDT params
+        is_discrete: True if the action space is discrete
+        temperature: temperature used before choosing a feature to represent each node
+
+    Returns:
+        FrozenDict with discrete params
+    """
+    new_params = unfreeze(copy.deepcopy(params))
+    sdt_params = new_params["params"]["sdt"]
+
+    int_weights = sdt_params["internal"]["kernel"]
+    int_bias = sdt_params["internal"]["bias"]
+    
+    # in the SDT, each internal node uses a weighted combination of each
+    # of the observation dimensions
+    # for the D-SDT, we only use the most influential feature
+    chosen = jnp.argmax(int_weights, axis=0)
+    one_hot_int = jax.nn.one_hot(chosen, num_classes=int_weights.shape[0]).T
+
+    # since we are only using one weight, we need to preserve the original
+    # decision boundary when adding the bias
+    denom = int_weights[chosen, jnp.arange(int_weights.shape[1])]
+    # safety check for dividing by very small weights
+    denom = jnp.where(jnp.abs(denom) < 1e-8, 1.0, denom)
+
+    norm_int_bias = int_bias / denom
+
+    sdt_params["internal"]["kernel"] = one_hot_int
+    sdt_params["internal"]["bias"] = norm_int_bias
+
+    leaf_weights = sdt_params["leaves"]["kernel"]
+
+    if is_discrete:
+        # select the most probable action
+        chosen_action = jnp.argmax(leaf_weights, axis=1)
+        one_hot_leaf = jax.nn.one_hot(chosen_action, num_classes=leaf_weights.shape[1])
+        sdt_params["leaves"]["kernel"] = one_hot_leaf
+
+    else:
+        # remove stochasticity
+        sdt_params["log_std"]["kernel"] = jnp.zeros_like(sdt_params["log_std"]["kernel"])
+        sdt_params["log_std"]["bias"] = jnp.zeros_like(sdt_params["log_std"]["bias"])
+
+    return freeze(new_params)
+
 def evaluate_agent(actor_state, config, is_discrete, action_indices):
-    """NOTE: The only difference between SDT and D-SDT is logic in the evaluation."""
+    """
+    Evaluate the current actor.
+    
+    NOTE: The only difference between SDT and D-SDT is logic in this evaluation.
+    """
     env = make_env(config["env_id"])
     scores = []
+
+    if config["actor"] == "d-sdt":
+        eval_params = convert_to_discrete(actor_state.params, is_discrete)
+    else:
+        eval_params = actor_state.params
 
     for _ in range(config["n_eval_episodes"]):
         obs, _ = env.reset()
@@ -479,13 +541,19 @@ def evaluate_agent(actor_state, config, is_discrete, action_indices):
 
         while not (done or trunc):
             obs_batch = jnp.array([obs])
-            pol = actor_state.apply_fn(actor_state.params, obs_batch)
+
+            if config["actor"] == "d-sdt":
+                # max-path routes all probability mass to the highest probability child
+                pol = actor_state.apply_fn(eval_params, obs_batch, max_path=True)
+            else:
+                pol = actor_state.apply_fn(eval_params, obs_batch, max_path=False)
 
             if is_discrete:
+                # find the most likely action
                 action = int(jnp.argmax(pol, axis=-1)[0])
                 if action_indices is not None:
+                    # apply the action mapping
                     action = action_indices[action]
-
             else:
                 mean, _ = pol
                 action = np.array(mean[0])
@@ -532,7 +600,7 @@ def main():
     total_time = timedelta(0)
     
     avg_episodic_return_list = []
-    eval = []
+    eval, train = [], []
     
     episode_stats = EpisodeStatistics(
         episode_returns=jnp.zeros(config['n_envs'], dtype=jnp.float32),
@@ -600,12 +668,14 @@ def main():
 
         if is_first or is_new or is_final:
             last_eval = current_eval
+            # TODO: render logic
             # render_now = config["render_each_eval"] or is_final
-
+            
             eval_score = evaluate_agent(actor_state, config, is_discrete, action_indices)
 
             print(f"[eval] step={global_step} score={eval_score}")
             eval.append((global_step, eval_score))
+            train.append((global_step, avg_return))
 
             wandb.log({
                 "eval/score": eval_score,
@@ -615,8 +685,9 @@ def main():
 
         iteration += 1
     
-    return eval
+    return train, eval
         
 if __name__ == '__main__':
-    eval = main()
-    print(eval)
+    train, eval = main()
+    print(f'eval: {eval}')
+    print(f'train: {train}')
