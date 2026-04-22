@@ -1,6 +1,6 @@
 '''
 This code is copied from the original codebase of the SYMPOL paper as it provides essential utility functions.
-While the file remains largely unchanged, we include observation labels for various environ,ents in OBSERVATION_LABELS.
+While the file remains largely unchanged, we include observation labels for various environments in OBSERVATION_LABELS.
 The original code can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppo_atari_envpool_xla_jaxpy
 
 build_env(): Creates our agent environments using various wrappers like limited view size
@@ -58,14 +58,13 @@ OBSERVATION_LABELS = {
     'LunarLander-v2': ['x', 'y', 'velocity_x', 'velocity_y', 'angle', 'angular_velocity',
                        'leg_1_ground_contact', 'leg_2_ground_contact'],
     'Pendulum-v1': ['x', 'y', 'angular_velocity'],
-    'Acrobot-v1': ['cos_theta1', 'sin_theta1', 'cos_theta2', 'sin_theta2', 'angular_velocity_theta1'
+    'Acrobot-v1': ['cos_theta1', 'sin_theta1', 'cos_theta2', 'sin_theta2', 'angular_velocity_theta1',
                    'angular_velocity_theta2']
 }
 
 
 class NormalizeObservationWrapper(GymnaxWrapper):
     """Normalize the observations of the environment."""
-
 
     def __init__(self, env, params):
         super().__init__(env)
@@ -394,7 +393,6 @@ class AutoResetWrapper(gym.Wrapper):
 def build_env(env_id, n_env, view_size=3):
     if n_env > 1: 
         env = gym.make(id=env_id) #, render_mode="rgb_array")
-
     else:
         env = gym.make(id=env_id, render_mode="rgb_array") #, render_mode="rgb_array")
 
