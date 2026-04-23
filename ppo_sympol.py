@@ -10,6 +10,8 @@ and results are saved the same way to properly reproduce the plots.
 Importantly, our contributions consists of the model definitions to fit our replicated model classes, 
 fixing several bugs in the original script (e.g. unused values, invalid typing; detailed in our writeup), 
 and augmenting the ppo training logic to fit our replication experiments.
+
+Note: If encountering issues with gymnasium[box2d] for LunarLander, try ```pip install box2d pygame```
 '''
 
 import os
@@ -54,8 +56,7 @@ class Args:
     n_eval_episodes: int = 5
     eval_freq: int = 50000
     normEnv: bool = True
-    learning_rate_actor: float = 1e-3
-    max_grad_norm: float = 0.5
+    max_grad_norm: float = 1000
     clip_coef: float = 0.1
     render_env: bool = True
     render_each_eval: bool = True
@@ -67,11 +68,11 @@ class Args:
     ent_coef: float = 0.200
     gae_lambda: float = 0.950
     gamma: float = 0.990
-    learning_rate_actor_split_values: float = 0.000
-    learning_rate_actor_split_idx_array: float = 0.026
-    learning_rate_actor_leaf_array: float = 0.020
-    learning_rate_actor_log_std: float = 0.001
-    learning_rate_critic: float = 0.001
+    learning_rate_actor_split_values: float = 0.000222274485191996
+    learning_rate_actor_split_idx_array: float = 0.025528008432059508
+    learning_rate_actor_leaf_array: float = 0.019530943718321373
+    learning_rate_actor_log_std: float = 0.0012313062437960766
+    learning_rate_critic: float = 0.0013329992676131342
     n_envs: int = 7
     n_steps: int = 512
     n_update_epochs: int = 7
@@ -82,181 +83,183 @@ class Args:
     depth: int = 7
     minibatch_size: int = 64
 
-    if env_id == "MiniGrid-Empty-Random-6x6-v0":
-        ent_coef = 0.100
-        gae_lambda = 0.990
-        gamma = 0.900
-        learning_rate_actor_weights = 0.063
-        learning_rate_actor_split_values = 0.001
-        learning_rate_actor_split_idx_array = 0.001
-        learning_rate_actor_leaf_array = 0.003
-        learning_rate_actor_log_std = 0.043
-        learning_rate_critic = 0.001
-        n_envs = 14
-        n_steps = 128
-        n_update_epochs = 8
-        norm_adv = True
-        reduce_lr = False
-        vf_coef = 0.500
-        dropout = 0.000
-        depth = 7
-        minibatch_size = 64
-    
-    elif env_id == "MiniGrid-DoorKey-5x5-v0":
-        ent_coef = 0.200
-        gae_lambda = 0.950
-        gamma = 0.990
-        learning_rate_actor_split_values = 0.001
-        learning_rate_actor_split_idx_array = 0.001
-        learning_rate_actor_leaf_array = 0.004
-        learning_rate_actor_log_std = 0.021
-        learning_rate_critic = 0.001
-        n_envs = 14
-        n_steps = 512
-        n_update_epochs = 9
-        norm_adv = True
-        reduce_lr = True
-        vf_coef = 0.500
-        dropout = 0.000
-        depth = 7
-        minibatch_size = 64
-
-    elif env_id == "MiniGrid-LavaGapS5-v0":
-        ent_coef = 0.100
-        gae_lambda = 0.900
-        gamma = 0.950
-        learning_rate_actor_split_values = 0.006
-        learning_rate_actor_split_idx_array = 0.012
-        learning_rate_actor_leaf_array = 0.009
-        learning_rate_actor_log_std = 0.005
-        learning_rate_critic = 0.001
-        n_envs = 16
-        n_steps = 512
-        n_update_epochs = 5
-        norm_adv = True
-        reduce_lr = True
-        vf_coef = 0.250
-        dropout = 0.000
-        depth = 7
-        minibatch_size = 64
-
-    elif env_id == "MiniGrid-LavaGapS7-v0":
-        ent_coef = 0.100
-        gae_lambda = 0.900
-        gamma = 0.990
-        learning_rate_actor_split_values = 0.001
-        learning_rate_actor_split_idx_array = 0.001
-        learning_rate_actor_leaf_array = 0.008
-        learning_rate_actor_log_std = 0.002
-        learning_rate_critic = 0.001
-        n_envs = 7
-        n_steps = 128
-        n_update_epochs = 4
-        norm_adv = True
-        reduce_lr = True
-        vf_coef = 0.500
-        dropout = 0.000
-        depth = 7
-        minibatch_size = 64
-
-    elif env_id == "MiniGrid-DistShift1-v0":
-        ent_coef = 0.500
-        gae_lambda = 0.950
-        gamma = 0.999
-        learning_rate_actor_split_values = 0.000
-        learning_rate_actor_split_idx_array = 0.009
-        learning_rate_actor_leaf_array = 0.001
-        learning_rate_actor_log_std = 0.038
-        learning_rate_critic = 0.001
-        n_envs = 10
-        n_steps = 512
-        n_update_epochs = 5
-        norm_adv = False
-        reduce_lr = True
-        vf_coef = 0.250
-        dropout = 0.000
-        depth = 7
-        minibatch_size = 64
-    
-    elif env_id == "Acrobot-v1":
-        ent_coef = 0.000
-        gae_lambda = 0.950
-        gamma = 0.990
-        learning_rate_actor_split_values = 0.000
-        learning_rate_actor_split_idx_array = 0.052
-        learning_rate_actor_leaf_array = 0.005
-        learning_rate_actor_log_std = 0.002
-        learning_rate_critic = 0.000
-        n_envs = 8
-        n_steps = 128
-        n_update_epochs = 7
-        norm_adv = False
-        reduce_lr = True
-        vf_coef = 0.250
-        dropout = 0.000
-        depth = 7
-        minibatch_size = 64
-
-    elif env_id == "LunarLander-v2":
-        ent_coef = 0.000
-        gae_lambda = 0.900
-        gamma = 0.999
-        learning_rate_actor_split_values = 0.001
-        learning_rate_actor_split_idx_array = 0.010
-        learning_rate_actor_leaf_array = 0.009
-        learning_rate_actor_log_std = 0.021
-        learning_rate_critic = 0.002
-        n_envs = 6
-        n_steps = 512
-        n_update_epochs = 7
-        norm_adv = True
-        reduce_lr = True
-        vf_coef = 0.500
-        dropout = 0.000
-        depth = 7
-        minibatch_size = 64
-
-    elif env_id == "MountainCarContinuous-v0":
-        ent_coef = 0.500
-        gae_lambda = 0.990
-        gamma = 0.999
-        learning_rate_actor_split_values = 0.000
-        learning_rate_actor_split_idx_array = 0.000
-        learning_rate_actor_leaf_array = 0.028
-        learning_rate_actor_log_std = 0.094
-        learning_rate_critic = 0.002
-        n_envs = 5
-        n_steps = 128
-        n_update_epochs = 2
-        norm_adv = False
-        reduce_lr = True
-        vf_coef = 0.500
-        dropout = 0.000
-        depth = 7
-        minibatch_size = 64
-
-    elif env_id == "Pendulum-v1":
-        ent_coef = 0.100
-        gae_lambda = 0.800
-        gamma = 0.999
-        learning_rate_actor_split_values = 0.000
-        learning_rate_actor_split_idx_array = 0.010
-        learning_rate_actor_leaf_array = 0.006
-        learning_rate_actor_log_std = 0.000
-        learning_rate_critic = 0.000
-        n_envs = 15
-        n_steps = 128
-        n_update_epochs = 7
-        norm_adv = True
-        reduce_lr = False
-        vf_coef = 0.750
-        dropout = 0.000
-        depth = 7
-        minibatch_size = 64
-
 
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "0"
+
 args = tyro.cli(Args)
+
+if args.env_id == "MiniGrid-Empty-Random-6x6-v0":
+    args.ent_coef = 0.100
+    args.gae_lambda = 0.990
+    args.gamma = 0.900
+    args.learning_rate_actor_weights = 0.063
+    args.learning_rate_actor_split_values = 0.001
+    args.learning_rate_actor_split_idx_array = 0.001
+    args.learning_rate_actor_leaf_array = 0.003
+    args.learning_rate_actor_log_std = 0.043
+    args.learning_rate_critic = 0.001
+    args.n_envs = 14
+    args.n_steps = 128
+    args.n_update_epochs = 8
+    args.norm_adv = True
+    args.reduce_lr = False
+    args.vf_coef = 0.500
+    args.dropout = 0.000
+    args.depth = 7
+    args.minibatch_size = 64
+
+elif args.env_id == "MiniGrid-DoorKey-5x5-v0":
+    args.ent_coef = 0.200
+    args.gae_lambda = 0.950
+    args.gamma = 0.990
+    args.learning_rate_actor_split_values = 0.001
+    args.learning_rate_actor_split_idx_array = 0.001
+    args.learning_rate_actor_leaf_array = 0.004
+    args.learning_rate_actor_log_std = 0.021
+    args.learning_rate_critic = 0.001
+    args.n_envs = 14
+    args.n_steps = 512
+    args.n_update_epochs = 9
+    args.norm_adv = True
+    args.reduce_lr = True
+    args.vf_coef = 0.500
+    args.dropout = 0.000
+    args.depth = 7
+    args.minibatch_size = 64
+
+elif args.env_id == "MiniGrid-LavaGapS5-v0":
+    args.ent_coef = 0.100
+    args.gae_lambda = 0.900
+    args.gamma = 0.950
+    args.learning_rate_actor_split_values = 0.006
+    args.learning_rate_actor_split_idx_array = 0.012
+    args.learning_rate_actor_leaf_array = 0.009
+    args.learning_rate_actor_log_std = 0.005
+    args.learning_rate_critic = 0.001
+    args.n_envs = 16
+    args.n_steps = 512
+    args.n_update_epochs = 5
+    args.norm_adv = True
+    args.reduce_lr = True
+    args.vf_coef = 0.250
+    args.dropout = 0.000
+    args.depth = 7
+    args.minibatch_size = 64
+
+elif args.env_id == "MiniGrid-LavaGapS7-v0":
+    args.ent_coef = 0.100
+    args.gae_lambda = 0.900
+    args.gamma = 0.990
+    args.learning_rate_actor_split_values = 0.001
+    args.learning_rate_actor_split_idx_array = 0.001
+    args.learning_rate_actor_leaf_array = 0.008
+    args.learning_rate_actor_log_std = 0.002
+    args.learning_rate_critic = 0.001
+    args.n_envs = 7
+    args.n_steps = 128
+    args.n_update_epochs = 4
+    args.norm_adv = True
+    args.reduce_lr = True
+    args.vf_coef = 0.500
+    args.dropout = 0.000
+    args.depth = 7
+    args.minibatch_size = 64
+
+elif args.env_id == "MiniGrid-DistShift1-v0":
+    args.ent_coef = 0.500
+    args.gae_lambda = 0.950
+    args.gamma = 0.999
+    args.learning_rate_actor_split_values = 0.000
+    args.learning_rate_actor_split_idx_array = 0.009
+    args.learning_rate_actor_leaf_array = 0.001
+    args.learning_rate_actor_log_std = 0.038
+    args.learning_rate_critic = 0.001
+    args.n_envs = 10
+    args.n_steps = 512
+    args.n_update_epochs = 5
+    args.norm_adv = False
+    args.reduce_lr = True
+    args.vf_coef = 0.250
+    args.dropout = 0.000
+    args.depth = 7
+    args.minibatch_size = 64
+
+elif args.env_id == "Acrobot-v1":
+    args.ent_coef = 0.000
+    args.gae_lambda = 0.950
+    args.gamma = 0.990
+    args.learning_rate_actor_split_values = 0.000
+    args.learning_rate_actor_split_idx_array = 0.052
+    args.learning_rate_actor_leaf_array = 0.005
+    args.learning_rate_actor_log_std = 0.002
+    args.learning_rate_critic = 0.000
+    args.n_envs = 8
+    args.n_steps = 128
+    args.n_update_epochs = 7
+    args.norm_adv = False
+    args.reduce_lr = True
+    args.vf_coef = 0.250
+    args.dropout = 0.000
+    args.depth = 7
+    args.minibatch_size = 64
+
+elif args.env_id == "LunarLander-v2":
+    args.ent_coef = 0.000
+    args.gae_lambda = 0.900
+    args.gamma = 0.999
+    args.learning_rate_actor_split_values = 0.001
+    args.learning_rate_actor_split_idx_array = 0.010
+    args.learning_rate_actor_leaf_array = 0.009
+    args.learning_rate_actor_log_std = 0.021
+    args.learning_rate_critic = 0.002
+    args.n_envs = 6
+    args.n_steps = 512
+    args.n_update_epochs = 7
+    args.norm_adv = True
+    args.reduce_lr = True
+    args.vf_coef = 0.500
+    args.dropout = 0.000
+    args.depth = 7
+    args.minibatch_size = 64
+
+elif args.env_id == "MountainCarContinuous-v0":
+    args.ent_coef = 0.500
+    args.gae_lambda = 0.990
+    args.gamma = 0.999
+    args.learning_rate_actor_split_values = 0.000
+    args.learning_rate_actor_split_idx_array = 0.000
+    args.learning_rate_actor_leaf_array = 0.028
+    args.learning_rate_actor_log_std = 0.094
+    args.learning_rate_critic = 0.002
+    args.n_envs = 5
+    args.n_steps = 128
+    args.n_update_epochs = 2
+    args.norm_adv = False
+    args.reduce_lr = True
+    args.vf_coef = 0.500
+    args.dropout = 0.000
+    args.depth = 7
+    args.minibatch_size = 64
+
+elif args.env_id == "Pendulum-v1":
+    args.ent_coef = 0.100
+    args.gae_lambda = 0.800
+    args.gamma = 0.999
+    args.learning_rate_actor_split_values = 0.000
+    args.learning_rate_actor_split_idx_array = 0.010
+    args.learning_rate_actor_leaf_array = 0.006
+    args.learning_rate_actor_log_std = 0.000
+    args.learning_rate_critic = 0.000
+    args.n_envs = 15
+    args.n_steps = 128
+    args.n_update_epochs = 7
+    args.norm_adv = True
+    args.reduce_lr = False
+    args.vf_coef = 0.750
+    args.dropout = 0.000
+    args.depth = 7
+    args.minibatch_size = 64
+
 # To minimize variance from the original paper, we use the same n_steps scaling as ppo.py
 args.n_steps = max(16, args.n_steps // 8)
 initial_steps = args.n_steps
@@ -433,7 +436,10 @@ def evaluate_agent(actor_state, env_id, n_episodes, name_appendix, seed=100):
                 action = action_distribution.mean()
                 action = jnp.squeeze(action, axis=0)
 
-            action = np.array(action)
+            if args.env_id == "MiniGrid-DoorKey-5x5-v0":
+                action = np.array([args.action_indices[single_action] for single_action in action], dtype=np.float64)
+            else:
+                action = np.array(action)
 
             next_obs, rewards, done, trunc, info = temp_env.step(action)
             
@@ -500,9 +506,6 @@ def evaluate_agent(actor_state, env_id, n_episodes, name_appendix, seed=100):
 
 if __name__ == "__main__":
     start_time = time.time()
-
-    accumulate_gradients_every = 1
-    accumulate_gradients_every_initial = accumulate_gradients_every
 
     rewards = []
     for random_trial in range(1, args.random_trials + 1):
@@ -690,7 +693,7 @@ if __name__ == "__main__":
 
 
         global_step = 0
-        next_obs, _ = envs.reset()
+        next_obs, _ = envs.reset(seed=env_seed)
         next_done = np.zeros(args.n_envs).astype(bool)
 
         avg_score_list = []
@@ -712,7 +715,6 @@ if __name__ == "__main__":
             critic_state: TrainState,                
             storage: Storage,
             key: jax.random.PRNGKey,
-            accumulate_gradients_every: int,
         ):
             def update_epoch(carry, unused_inp):
                 actor_state, critic_state, key = carry
@@ -743,34 +745,18 @@ if __name__ == "__main__":
                         minibatch.advantages,
                         minibatch.returns,
                     )
-                    critic_state = critic_state.apply_gradients(grads=critic_grads)
-                    actor_grad_accum = jax.tree_util.tree_map(lambda x, y: x + y, actor_grads, actor_state.grad_accum)
                     actor_state = actor_state.apply_gradients(grads=actor_grads)
-            
-                    def update_fn():
-                        grads = jax.tree_util.tree_map(lambda x: x / accumulate_gradients_every, actor_grad_accum)
-                        new_state = actor_state.apply_gradients(
-                            grads=grads,
-                            grad_accum=jax.tree_util.tree_map(jnp.zeros_like, grads),
-                        )
-                        return new_state
-            
-                    actor_state = jax.lax.cond(
-                        actor_state.step % accumulate_gradients_every == 0,
-                        lambda _: update_fn(),
-                        lambda _: actor_state.replace(grad_accum=actor_grad_accum, step=actor_state.step + 1),
-                        None,
-                    )
+                    critic_state = critic_state.apply_gradients(grads=critic_grads)
                     
-                    return (actor_state, critic_state), (loss, pg_loss, v_loss, entropy_loss, approx_kl, actor_grad_accum)
+                    return (actor_state, critic_state), (loss, pg_loss, v_loss, entropy_loss, approx_kl)
                 
-                (actor_state, critic_state), (loss, pg_loss, v_loss, entropy_loss, approx_kl, actor_grad_accum) = jax.lax.scan(
+                (actor_state, critic_state), (loss, pg_loss, v_loss, entropy_loss, approx_kl) = jax.lax.scan(
                     update_minibatch, (actor_state, critic_state), shuffled_storage
                 )
 
-                return (actor_state, critic_state, key), (loss, pg_loss, v_loss, entropy_loss, approx_kl, actor_grad_accum)
+                return (actor_state, critic_state, key), (loss, pg_loss, v_loss, entropy_loss, approx_kl)
 
-            (actor_state, critic_state, key), (loss, pg_loss, v_loss, entropy_loss, approx_kl, actor_grad_accum) = jax.lax.scan(
+            (actor_state, critic_state, key), (loss, pg_loss, v_loss, entropy_loss, approx_kl) = jax.lax.scan(
                 update_epoch, (actor_state, critic_state, key), (), length=args.n_update_epochs
             )
 
@@ -781,16 +767,11 @@ if __name__ == "__main__":
             wandb_log = {}
             increase_factor = int(2**(np.ceil((((global_step+1)*8)/(1+args.total_steps)))-1))
             n_steps = initial_steps * increase_factor           
-            accumulate_gradients_every = int(accumulate_gradients_every_initial)                
             batch_size = int(args.n_envs * n_steps)
             current_eval = global_step // args.eval_freq
             if n_steps != n_steps_old:               
                 rollout = create_rollout(n_steps, envs)
-                n_steps_old = n_steps
-            else:
-                if global_step == 0:
-                    rollout = create_rollout(n_steps, envs) 
-                current_eval = global_step // args.eval_freq            
+                n_steps_old = n_steps         
             start_time_cleaned = time.time()
             
             storage = Storage(
@@ -818,8 +799,7 @@ if __name__ == "__main__":
                 actor_state,
                 critic_state,
                 storage,
-                key,
-                accumulate_gradients_every
+                key
             )
             elapsed_time_cleaned = time.time() - start_time_cleaned
             total_time_cleaned += elapsed_time_cleaned
@@ -830,67 +810,66 @@ if __name__ == "__main__":
                 last_eval = current_eval
                 render_now = True if args.render_each_eval else True if global_step + batch_size >= args.total_steps else False
 
-            end_time = time.time()
-            elapsed_time = end_time - start_time
+                end_time = time.time()
+                elapsed_time = end_time - start_time
 
-            score, node_count = evaluate_agent(
-                actor_state=actor_state,
-                env_id=args.env_id,
-                n_episodes=args.n_eval_episodes,
-                name_appendix="",
-                seed=env_seed
-            )
-
-            avg_score = np.mean(score).item()
-            std_score = np.std(score).item()
-
-            if args.reduce_lr:
-                _, lr_scheduler_state = lr_scheduler.update(
-                    updates=actor_state.params, state=lr_scheduler_state, value=avg_score
-                )
-
-                actor_state.opt_state[1][0]['threshold_values'][0].hyperparams["learning_rate"] = args.learning_rate_actor_split_values * lr_scheduler_state.scale
-                actor_state.opt_state[1][0]['feature_assignments'][0].hyperparams["learning_rate"] = args.learning_rate_actor_split_idx_array * lr_scheduler_state.scale
-                actor_state.opt_state[1][0]['leaf_outputs'][0].hyperparams["learning_rate"] = args.learning_rate_actor_leaf_array * lr_scheduler_state.scale
-                actor_state.opt_state[1][0]['log_std_dev'][0].hyperparams["learning_rate"] = args.learning_rate_actor_log_std * lr_scheduler_state.scale
-
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            start_time = end_time
-
-            # The following wandb logging code is taken directly from the original codebase as it is not important to our replication
-            print(f"global_step={global_step}, avg_eval_episodic_return={avg_score} (Elapsed time: {elapsed_time} seconds)")
-            wandb_log['charts/avg_score'] = avg_score
-            wandb_log['charts/std_score'] = std_score
-            wandb_log['charts/score_list'] = score
-            
-            avg_score_list.append(avg_score)
-            wandb_log['charts/node_count'] = node_count
-            wandb_log['charts/total_time_cleaned'] = total_time_cleaned
-
-            if global_step + batch_size >= args.total_steps:
-                test_seed = 123456
-                        
-                score_test, node_count_test = evaluate_agent(
-                    actor_state, 
-                    args.env_id,
+                score, node_count = evaluate_agent(
+                    actor_state=actor_state,
+                    env_id=args.env_id,
                     n_episodes=args.n_eval_episodes,
                     name_appendix="",
-                    decision_tree=None,
-                    seed=test_seed
+                    seed=env_seed
                 )
-        
-                avg_score_test = np.mean(score_test).item()
-                std_score_test = np.std(score_test).item()
 
+                avg_score = np.mean(score).item()
+                std_score = np.std(score).item()
+
+                if args.reduce_lr:
+                    _, lr_scheduler_state = lr_scheduler.update(
+                        updates=actor_state.params, state=lr_scheduler_state, value=avg_score
+                    )
+
+                    actor_state.opt_state[1][0]['threshold_values'][0].hyperparams["learning_rate"] = args.learning_rate_actor_split_values * lr_scheduler_state.scale
+                    actor_state.opt_state[1][0]['feature_assignments'][0].hyperparams["learning_rate"] = args.learning_rate_actor_split_idx_array * lr_scheduler_state.scale
+                    actor_state.opt_state[1][0]['leaf_outputs'][0].hyperparams["learning_rate"] = args.learning_rate_actor_leaf_array * lr_scheduler_state.scale
+                    actor_state.opt_state[1][0]['log_std_dev'][0].hyperparams["learning_rate"] = args.learning_rate_actor_log_std * lr_scheduler_state.scale
+
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                start_time = end_time
+
+                # The following wandb logging code is taken directly from the original codebase as it is not important to our replication
                 print(f"global_step={global_step}, avg_eval_episodic_return={avg_score} (Elapsed time: {elapsed_time} seconds)")
                 wandb_log['charts/avg_score'] = avg_score
                 wandb_log['charts/std_score'] = std_score
                 wandb_log['charts/score_list'] = score
-                
+            
                 avg_score_list.append(avg_score)
                 wandb_log['charts/node_count'] = node_count
                 wandb_log['charts/total_time_cleaned'] = total_time_cleaned
+
+                if global_step + batch_size >= args.total_steps:
+                    test_seed = 123456
+                            
+                    score_test, node_count_test = evaluate_agent(
+                        actor_state, 
+                        args.env_id,
+                        n_episodes=args.n_eval_episodes,
+                        name_appendix="",
+                        seed=test_seed
+                    )
+            
+                    avg_score_test = np.mean(score_test).item()
+                    std_score_test = np.std(score_test).item()
+
+                    print(f"global_step={global_step}, avg_eval_episodic_return={avg_score} (Elapsed time: {elapsed_time} seconds)")
+                    wandb_log['charts/avg_score'] = avg_score
+                    wandb_log['charts/std_score'] = std_score
+                    wandb_log['charts/score_list'] = score
+                    
+                    avg_score_list.append(avg_score)
+                    wandb_log['charts/node_count'] = node_count
+                    wandb_log['charts/total_time_cleaned'] = total_time_cleaned
 
             wandb_log['charts/global_step'] = global_step
             wandb_log['charts/avg_episodic_return'] = avg_episodic_return
@@ -916,5 +895,3 @@ if __name__ == "__main__":
         envs.close()
 
         rewards.append(avg_score_list[-1])
-
-        
