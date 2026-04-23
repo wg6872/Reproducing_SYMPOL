@@ -43,7 +43,7 @@ from utils import (
 from sympol import SYMPOL
 from mlp import CriticMLP
 
-# We hardcode the optimal hyperparameters for each environment based on the original paper's experiments.
+# We hardcode the optimal hyperparameters for each environment based on the original paper's experiments (from configs.py)
 # Note that we can adjust these hyperparameters anytime using optional arguments
 @dataclass
 class Args:
@@ -833,6 +833,8 @@ if __name__ == "__main__":
 
                 # The following wandb logging code is taken directly from the original codebase as it is not important to our replication
                 print(f"Train: global_step={global_step}, avg_eval_episodic_return={avg_score} (Elapsed time: {elapsed_time} seconds)")
+
+                # Train-time eval/testing statistics
                 wandb_log['train/avg_score'] = avg_score
                 wandb_log['train/std_score'] = std_score
                 wandb_log['train/score_list'] = score
@@ -841,6 +843,7 @@ if __name__ == "__main__":
                 wandb_log['train/node_count'] = node_count
 
                 if global_step + batch_size >= args.total_steps:
+                    # Using the same final eval seed for reproducibility
                     test_seed = 123456
                             
                     score_test, node_count_test = evaluate_agent(
@@ -855,6 +858,7 @@ if __name__ == "__main__":
                     std_score_test = np.std(score_test).item()
 
                     print(f"Test: global_step={global_step}, avg_eval_episodic_return={avg_score_test} (Elapsed time: {elapsed_time} seconds)")
+                    # Final eval/testing statistics
                     wandb_log['test/avg_score_test'] = avg_score_test
                     wandb_log['test/std_score_test'] = std_score_test
                     wandb_log['test/score_list_test'] = score_test
@@ -862,6 +866,8 @@ if __name__ == "__main__":
 
 
             wandb_log['global_step'] = global_step
+
+            # Training statistics
             wandb_log['train/avg_episodic_return'] = avg_episodic_return
             wandb_log['train/avg_episodic_return_10'] = np.mean(avg_episodic_return_list[-10:])
             wandb_log['train/avg_episodic_return_100'] = np.mean(avg_episodic_return_list[-100:])
