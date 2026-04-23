@@ -2,13 +2,13 @@
 This code is adapted from the template of clean-rl's implementation of PPO and extends SYMPOL's implementation to fit our replication
 The original code template can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppo_atari_envpool_xla_jaxpy
 
-Note: The PPO advantage calculation, update helper function, wandb logging, and evaluation script are taken directly from SYMPOL.
-This is because the authors use specific JAX optimization techniques (e.g. jax.lax.scan) that are not specified in the paper 
+Note: The PPO advantage calculation, update/rollout helper functions, wandb logging, and evaluation/plotting script are taken directly from SYMPOL.
+This is because the authors use specific JAX optimization techniques (e.g. jax.lax.scan) or other technical details that are not specified in the paper
 and are largely different from clean-rl's PPO. Moreover, we use the same Storage and TrainState classes to ensure that our model 
-and results are saved the same way to properly reproduce the plots.
+and results are saved the same way to properly reproduce the plots. We note and explain these functions in our writeup.
 
-Importantly, our contributions consists of the model definitions to fit our replicated model classes, 
-fixing several bugs in the original script (e.g. unused values, invalid typing; detailed in our writeup), 
+Importantly, our contributions consist of the model definitions to fit our replicated model classes, 
+fixing several issues in the original training script (e.g. unused values, invalid typing, improper updates; detailed in our writeup), 
 and augmenting the ppo training logic to fit our replication experiments.
 
 Note: If encountering issues with gymnasium[box2d] for LunarLander, try ```pip install box2d pygame```
