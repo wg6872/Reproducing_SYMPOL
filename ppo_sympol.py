@@ -507,7 +507,6 @@ def evaluate_agent(actor_state, env_id, n_episodes, name_appendix, seed=100):
 if __name__ == "__main__":
     start_time = time.time()
 
-    rewards = []
     for random_trial in range(1, args.random_trials + 1):
         model_identifier = str(args.seed)
         run_name = '-'.join([args.experiment_name, args.env_id, model_identifier, str(random_trial)])
@@ -702,7 +701,6 @@ if __name__ == "__main__":
         n_steps_old = 0
 
         avg_episodic_return_list = []
-        total_time_cleaned = 0
 
         ppo_loss_base_grad_fn = jax.value_and_grad(ppo_loss_base, argnums=(0, 1), has_aux=True)
 
@@ -772,7 +770,6 @@ if __name__ == "__main__":
             if n_steps != n_steps_old:               
                 rollout = create_rollout(n_steps, envs)
                 n_steps_old = n_steps         
-            start_time_cleaned = time.time()
             
             storage = Storage(
                 obs=jnp.zeros(
@@ -801,8 +798,6 @@ if __name__ == "__main__":
                 storage,
                 key
             )
-            elapsed_time_cleaned = time.time() - start_time_cleaned
-            total_time_cleaned += elapsed_time_cleaned
             
             avg_episodic_return = np.mean(np.array(episode_stats.returned_episode_returns))
             avg_episodic_return_list.append(avg_episodic_return)
@@ -828,7 +823,6 @@ if __name__ == "__main__":
                     _, lr_scheduler_state = lr_scheduler.update(
                         updates=actor_state.params, state=lr_scheduler_state, value=avg_score
                     )
-
                     actor_state.opt_state[1][0]['threshold_values'][0].hyperparams["learning_rate"] = args.learning_rate_actor_split_values * lr_scheduler_state.scale
                     actor_state.opt_state[1][0]['feature_assignments'][0].hyperparams["learning_rate"] = args.learning_rate_actor_split_idx_array * lr_scheduler_state.scale
                     actor_state.opt_state[1][0]['leaf_outputs'][0].hyperparams["learning_rate"] = args.learning_rate_actor_leaf_array * lr_scheduler_state.scale
@@ -839,14 +833,13 @@ if __name__ == "__main__":
                 start_time = end_time
 
                 # The following wandb logging code is taken directly from the original codebase as it is not important to our replication
-                print(f"global_step={global_step}, avg_eval_episodic_return={avg_score} (Elapsed time: {elapsed_time} seconds)")
-                wandb_log['charts/avg_score'] = avg_score
-                wandb_log['charts/std_score'] = std_score
-                wandb_log['charts/score_list'] = score
+                print(f"Train: global_step={global_step}, avg_eval_episodic_return={avg_score} (Elapsed time: {elapsed_time} seconds)")
+                wandb_log['train/avg_score'] = avg_score
+                wandb_log['train/std_score'] = std_score
+                wandb_log['train/score_list'] = score
             
                 avg_score_list.append(avg_score)
-                wandb_log['charts/node_count'] = node_count
-                wandb_log['charts/total_time_cleaned'] = total_time_cleaned
+                wandb_log['train/node_count'] = node_count
 
                 if global_step + batch_size >= args.total_steps:
                     test_seed = 123456
@@ -862,36 +855,21 @@ if __name__ == "__main__":
                     avg_score_test = np.mean(score_test).item()
                     std_score_test = np.std(score_test).item()
 
-                    print(f"global_step={global_step}, avg_eval_episodic_return={avg_score} (Elapsed time: {elapsed_time} seconds)")
-                    wandb_log['charts/avg_score'] = avg_score
-                    wandb_log['charts/std_score'] = std_score
-                    wandb_log['charts/score_list'] = score
-                    
-                    avg_score_list.append(avg_score)
-                    wandb_log['charts/node_count'] = node_count
-                    wandb_log['charts/total_time_cleaned'] = total_time_cleaned
+                    print(f"Test: global_step={global_step}, avg_eval_episodic_return={avg_score_test} (Elapsed time: {elapsed_time} seconds)")
+                    wandb_log['test/avg_score_test'] = avg_score_test
+                    wandb_log['test/std_score_test'] = std_score_test
+                    wandb_log['test/score_list_test'] = score_test
+                    wandb_log['test/node_count_test'] = node_count_test
 
-            wandb_log['charts/global_step'] = global_step
-            wandb_log['charts/avg_episodic_return'] = avg_episodic_return
-            wandb_log['charts/avg_episodic_return_100'] = np.mean(avg_episodic_return_list[-100:])
-            wandb_log['charts/avg_episodic_return_10'] = np.mean(avg_episodic_return_list[-10:])
-            wandb_log['charts/avg_episodic_length'] = np.mean(np.array(episode_stats.returned_episode_lengths))
-            try:
-                wandb_log['losses/value_loss'] = np.mean(v_loss[-1])
-                wandb_log['losses/policy_loss'] = np.mean(pg_loss[-1])
-                wandb_log['losses/entropy'] = np.mean(entropy_loss[-1])
-                wandb_log['losses/approx_kl'] = np.mean(approx_kl[-1])
-                wandb_log['losses/loss'] = np.mean(loss[-1])
-            except:
-                wandb_log['losses/value_loss'] = v_loss
-                wandb_log['losses/policy_loss'] = pg_loss
-                wandb_log['losses/entropy'] = entropy_loss
-                wandb_log['losses/approx_kl'] = approx_kl
-                wandb_log['losses/loss'] = loss
+
+            wandb_log['global_step'] = global_step
+            wandb_log['train/avg_episodic_return'] = avg_episodic_return
+            wandb_log['train/avg_episodic_return_10'] = np.mean(avg_episodic_return_list[-10:])
+            wandb_log['train/avg_episodic_return_100'] = np.mean(avg_episodic_return_list[-100:])
+
             wandb.log(wandb_log)
 
             iteration = iteration + 1
+
         wandb_run.finish()
         envs.close()
-
-        rewards.append(avg_score_list[-1])
