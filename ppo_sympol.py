@@ -436,7 +436,7 @@ def evaluate_agent(actor_state, env_id, n_episodes, name_appendix, seed=100):
                 action = jnp.squeeze(action, axis=0)
 
             if args.env_id == "MiniGrid-DoorKey-5x5-v0":
-                action = np.array([args.action_indices[single_action] for single_action in action], dtype=np.float64)
+                action = np.array(args.action_indices[action], dtype=np.float64)
             else:
                 action = np.array(action)
 
