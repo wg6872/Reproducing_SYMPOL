@@ -30,7 +30,7 @@ from mlp import Critic_MLP
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "0"
 
 # TODO: replace when wandb project is made
-os.environ["WANDB_MODE"] = "offline"
+os.environ["WANDB_MODE"] = "online"
 
 @flax.struct.dataclass
 class batch:
@@ -102,6 +102,7 @@ def setup():
         project=f"{args.exp_name}_{args.env_id}",
         config=config,
         name=run_name,
+        group=args.run_name,
         monitor_gym=True,
         save_code=True, 
     )
@@ -304,7 +305,7 @@ def get_ppo_loss(config, actor_state, critic_state, actor_params, critic_params,
     if config.norm_adv:
         mb_advantages = (batch.advantages - batch.advantages.mean()) / (batch.advantages.std() + 1e-8)
     else:
-         mb_advantages = batch.advantages
+        mb_advantages = batch.advantages
 
     pol_loss = -mb_advantages * ratio
     clipped_loss = -mb_advantages * jnp.clip(ratio, 1 - config.clip_coef, 1 + config.clip_coef)
@@ -520,7 +521,7 @@ def convert_to_discrete(params, is_discrete):
 
     return freeze(new_params)
 
-def evaluate_agent(actor_state, config, is_discrete, action_indices):
+def evaluate_agent(actor_state, config, is_discrete, action_indices, seed=100):
     """
     Evaluate the current actor.
     
@@ -534,8 +535,8 @@ def evaluate_agent(actor_state, config, is_discrete, action_indices):
     else:
         eval_params = actor_state.params
 
-    for _ in range(config["n_eval_episodes"]):
-        obs, _ = env.reset()
+    for ep_index in range(config["n_eval_episodes"]):
+        obs, _ = env.reset(seed=seed + ep_index)
         done, trunc = False, False
         total_reward = 0.0
 
@@ -564,11 +565,16 @@ def evaluate_agent(actor_state, config, is_discrete, action_indices):
         scores.append(total_reward)
 
     env.close()
-    return float(np.mean(scores))
+    return float(np.mean(scores)), float(np.std(scores))
 
-def main():
+def main(trial):
     config, train_config = setup()
-
+    
+    # fix issues with seeding
+    seed = config["seed"] + (trial * 100)
+    config["seed"] = seed
+    wandb.config.update({"trial": trial, "seed": seed}, allow_val_change=True)
+    
     raw_envs = [lambda: make_env(config['env_id']) for _ in range(config['n_envs'])]
     envs = gym.vector.AsyncVectorEnv(raw_envs)
     
@@ -668,26 +674,32 @@ def main():
 
         if is_first or is_new or is_final:
             last_eval = current_eval
-            # TODO: render logic
-            # render_now = config["render_each_eval"] or is_final
             
-            eval_score = evaluate_agent(actor_state, config, is_discrete, action_indices)
+            eval_score, eval_std = evaluate_agent(actor_state, config, is_discrete, action_indices)
 
             print(f"[eval] step={global_step} score={eval_score}")
             eval.append((global_step, eval_score))
             train.append((global_step, avg_return))
-
+            
             wandb.log({
-                "eval/score": eval_score,
-                "train/avg_return": avg_return,
-                "global_step": global_step,
+                "test/avg_score": eval_score,
+                "test/avg_std": eval_std,
+                "global_step": global_step
             })
 
         iteration += 1
+        
+        avg_episodic_return_100 = np.mean(avg_episodic_return_list[-100:])
+        wandb.log({
+            "train/avg_episodic_return": avg_return,
+            "train/avg_episodic_return_100": avg_episodic_return_100,
+            "global_step": global_step
+        })
     
     return train, eval
         
 if __name__ == '__main__':
-    train, eval = main()
-    print(f'eval: {eval}')
-    print(f'train: {train}')
+    for trial in range(5):
+        print(f"\n=== Starting trial {trial} ===\n")
+        train, eval = main(trial)
+        wandb.finish()
