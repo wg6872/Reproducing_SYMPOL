@@ -1,12 +1,15 @@
 # Reproducing_SYMPOL
+This repository contains our submission for Track 1 of the final project for COS435 (Introduction to Reinforcement Learning). 
 
-# Requirements
-## SYMPOL
+We replicate "Mitigating Information Loss in Tree-Based Reinforcement Learning via Direct Optimization" Marton et al. (2025).
+
+## Requirements
+### SYMPOL
 **Note:** ```ppo_sympol.py``` requires both ```python==3.11.4``` and the package versions in ```requirements_sympol.txt```.
 
-To run an environment using our version of SYMPOL use the ```env_id``` argument for ```ppo_sympol.py```.
+To run an environment using our version of SYMPOL, use the ```env_id``` argument for ```ppo_sympol.py```.
 
-# References
+## References
 ```
 @article{huang2022cleanrl,
   author  = {Shengyi Huang and Rousslan Fernand Julien Dossa and Chang Ye and Jeff Braga and Dipam Chakraborty and Kinal Mehta and João G.M. Araújo},
