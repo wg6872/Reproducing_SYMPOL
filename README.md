@@ -1,5 +1,11 @@
 # Reproducing_SYMPOL
 
+# Requirements
+## SYMPOL
+**Note:** ```ppo_sympol.py``` requires both ```python==3.11.4``` and the package versions in ```requirements_sympol.txt```.
+
+To run an environment using our version of SYMPOL use the ```env_id``` argument for ```ppo_sympol.py```.
+
 # References
 ```
 @article{huang2022cleanrl,

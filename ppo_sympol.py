@@ -37,7 +37,7 @@ from utils import (
     EpisodeStatistics, # Defines the training statistics to track episode returns/lengths to send to Wandb
     Storage, # Defines the training statistics to track episode obs/actions/etc. to send to Wandb
     plot_decision_tree, # Plots pruned/un-pruned decision trees for our Actor model using Graphviz backend
-    OBSERVATION_LABELS # Harcoded observation labels to help with decision tree interpretability
+    OBSERVATION_LABELS # Hard-coded observation labels to help with decision tree interpretability
 )
 
 from sympol import SYMPOL

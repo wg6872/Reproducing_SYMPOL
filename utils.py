@@ -47,7 +47,7 @@ from gymnax.environments import spaces as spaces_gymnax
 
 import copy
 
-# cannot put obs labels on other minigrid environments
+# We cannot put observation labels on MiniGrid environments due to the custom wrappers used
 OBSERVATION_LABELS = {
     'CartPole-v1': ['cart_position', 'cart_velocity', 'pole_angle', 'pole_angular_velocity'],
     'MountainCarContinuous-v0': ['car_position', 'car_velocity'],
