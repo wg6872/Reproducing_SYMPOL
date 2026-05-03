@@ -776,7 +776,7 @@ if __name__ == "__main__":
                 ),
                 actions=jnp.zeros(
                     (n_steps, args.n_envs) + envs.single_action_space.shape if args.n_envs > 1 else (n_steps, args.n_envs) + envs.action_space.shape, 
-                    dtype=jnp.int32
+                    dtype=(jnp.int32 if args.action_type == "discrete" else jnp.float32)
                 ),
                 logprobs=jnp.zeros((n_steps, args.n_envs)),
                 dones=jnp.zeros((n_steps, args.n_envs)),
