@@ -6,7 +6,9 @@ The PPO advantage calculation, rollout helper function, and plotting script are 
 This is because the authors use specific JAX optimization techniques (e.g. jax.lax.scan) or other technical details that are not specified in the paper
 and are largely different from clean-rl's PPO. Moreover, we use the same Storage and TrainState classes to ensure that our model 
 and results are saved the same way to properly reproduce the plots. We note and explain these functions in our writeup and the comments below.
-The original code can be found at https://github.com/s-marton/SYMPOL/blob/master/sympol.py 
+The original code can be found at https://github.com/s-marton/SYMPOL/blob/master/sympol.py
+# Authors: Sascha Marton, Tim Grams, Florian Vogt, Stefan Ludtke, Christian Bartelt, Heiner Stuckenschmidt
+# License: MIT
 
 Importantly, our contributions consist of the model definitions to fit our replicated model classes, fixing several issues in the original training script 
 (e.g. unused values, invalid typing, improper updates; detailed in our writeup), and augmenting the ppo training logic to fit our replication experiments.
