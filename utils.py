@@ -1,12 +1,17 @@
 '''
 This code is copied from the original codebase of the SYMPOL paper as it provides essential utility functions.
 While the file remains largely unchanged, we include observation labels for various environments in OBSERVATION_LABELS.
-The original code can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppo_atari_envpool_xla_jaxpy
+The original code can be found at https://github.com/s-marton/SYMPOL/blob/master/utils.py
 
-build_env(): Creates our agent environments using various wrappers like limited view size
-ActorTrainState: Creates a JAX TrainState class that allows us to track tree node indices
+We explain what each aspect of this file does below:
+build_env(): Creates our agent environments using various wrapper functionalities such as limiting view size or flattening observation tensors
+    - Note: The wrappers used for our experiments flatten, sub-sample, normalize, and randomize the environment such that agent training is more stable and generalizable.
+            For example, ViewSizeWrapper(), OneHotPartialObsWrapper(), and FlatCurrentReducedWrapper() are used in ppo_sympol.py
+ActorTrainState: Creates a JAX TrainState class that allows us to track tree node indices for SYMPOL
 EpisodeStatistics: Creates an object that tracks returns and episode lengths
-plot_decision_tree(): Plots decision tree (pruned/unpruned) using various conversion helper functions with observation labels
+plot_decision_tree(): Plots decision tree (pruned/unpruned) using various conversion helper functions with observation labels. 
+    - Note: The corresponding helper calculations are not detailed in the original paper. To prune, they check for redundancies in tree branches.
+            To discretize, they shift the soft decision boundaries to the majority side.
 OBSERVATION_LABELS: Observation-to-event mappings for each environment
 '''
 
@@ -47,7 +52,7 @@ from gymnax.environments import spaces as spaces_gymnax
 
 import copy
 
-# We cannot put observation labels on MiniGrid environments due to the custom wrappers used
+# Note: We cannot add observation labels for MiniGrid environments due to the custom wrappers used
 OBSERVATION_LABELS = {
     'CartPole-v1': ['cart_position', 'cart_velocity', 'pole_angle', 'pole_angular_velocity'],
     'MountainCarContinuous-v0': ['car_position', 'car_velocity'],
