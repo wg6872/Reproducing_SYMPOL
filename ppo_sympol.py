@@ -2,14 +2,14 @@
 This code is adapted from the template of clean-rl's implementation of PPO and extends SYMPOL's implementation to fit our replication
 The original code template can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppo_atari_envpool_xla_jaxpy
 
-Note: The PPO advantage calculation, update/rollout helper functions, wandb logging, and evaluation/plotting script are taken directly from SYMPOL.
+The PPO advantage calculation, rollout helper function, and plotting script are taken directly from SYMPOL.
 This is because the authors use specific JAX optimization techniques (e.g. jax.lax.scan) or other technical details that are not specified in the paper
 and are largely different from clean-rl's PPO. Moreover, we use the same Storage and TrainState classes to ensure that our model 
-and results are saved the same way to properly reproduce the plots. We note and explain these functions in our writeup.
+and results are saved the same way to properly reproduce the plots. We note and explain these functions in our writeup and the comments below.
+The original code can be found at https://github.com/s-marton/SYMPOL/blob/master/sympol.py 
 
-Importantly, our contributions consist of the model definitions to fit our replicated model classes, 
-fixing several issues in the original training script (e.g. unused values, invalid typing, improper updates; detailed in our writeup), 
-and augmenting the ppo training logic to fit our replication experiments.
+Importantly, our contributions consist of the model definitions to fit our replicated model classes, fixing several issues in the original training script 
+(e.g. unused values, invalid typing, improper updates; detailed in our writeup), and augmenting the ppo training logic to fit our replication experiments.
 
 Note: If encountering issues with gymnasium[box2d] for LunarLander, try ```pip install box2d pygame```
 '''
@@ -17,7 +17,7 @@ Note: If encountering issues with gymnasium[box2d] for LunarLander, try ```pip i
 import os
 import time
 from dataclasses import dataclass
-import tyro # We use Tyro, like the original codebase, for ease of implementation
+import tyro # Using Tyro, like the original codebase, for ease of implementation
 
 import gymnasium as gym
 import jax
@@ -32,12 +32,12 @@ from optax_swag import swag
 from PIL import Image, ImageDraw, ImageFont
 import wandb
 from utils import (
-    build_env, # Creates our (sometimes parallel) environments with the correct wrappers for each corresponding env
-    ActorTrainState, # Defines separate TrainState for the SYMPOL actor as it requires us to track the node indices
+    build_env, # Creates our (sometimes parallel) environments with the correct wrappers for each corresponding environment
+    ActorTrainState, # Defines separate TrainState for the SYMPOL actor as it requires us to track the node indices as a model parameter
     EpisodeStatistics, # Defines the training statistics to track episode returns/lengths to send to Wandb
     Storage, # Defines the training statistics to track episode obs/actions/etc. to send to Wandb
-    plot_decision_tree, # Plots pruned/un-pruned decision trees for our Actor model using Graphviz backend
-    OBSERVATION_LABELS # Harcoded observation labels to help with decision tree interpretability
+    plot_decision_tree, # Plots pruned/un-pruned decision trees for our Actor model using Graphviz backend and tree distillation logic
+    OBSERVATION_LABELS # Hard-coded observation labels to help with decision tree interpretability
 )
 
 from sympol import SYMPOL
@@ -259,7 +259,7 @@ elif args.env_id == "Pendulum-v1":
     args.depth = 7
     args.minibatch_size = 64
 
-# To minimize variance from the original paper, we use the same n_steps scaling as ppo.py
+# To minimize variance from the original paper, we use the same n_steps exponential scaling as ppo.py. This ensures proper exploration by the agent.
 args.n_steps = max(16, args.n_steps // 8)
 initial_steps = args.n_steps
 batch_size = int(args.n_envs * args.n_steps)
@@ -392,6 +392,10 @@ def create_SYMPOL_agent(envs):
 
 
 def evaluate_agent(actor_state, env_id, n_episodes, name_appendix, seed=100):
+    '''
+    Helper function taken from the original codebase which performs an evaluation episode in a single environment.
+    Writes the pruned and complete policy trees to output files. Optionally renders the video replay of the agent in the episode.
+    '''
     video_folder = 'videos/wandb'
     if not os.path.exists(video_folder):
         os.makedirs(video_folder)    
@@ -436,7 +440,7 @@ def evaluate_agent(actor_state, env_id, n_episodes, name_appendix, seed=100):
                 action = jnp.squeeze(action, axis=0)
 
             if args.env_id == "MiniGrid-DoorKey-5x5-v0":
-                action = np.array([args.action_indices[single_action] for single_action in action], dtype=np.float64)
+                action = np.array(args.action_indices[action], dtype=np.float64)
             else:
                 action = np.array(action)
 
@@ -541,7 +545,10 @@ if __name__ == "__main__":
             step: int,
             key: jax.random.PRNGKey,
         ):
-            """sample action, calculate value, logprob, entropy, and update storage"""
+            '''
+            Sample action, calculate value, logprob, entropy, and update storage.
+            Returns storage object, action, and random key
+            '''
             if args.action_type == "discrete":
                 logits = actor.apply(actor_state.params, next_obs, indices=actor_state.indices)
                 dist = distrax.Categorical(logits=logits)
@@ -573,6 +580,10 @@ if __name__ == "__main__":
             x: np.ndarray,
             action: np.ndarray,
         ):
+            '''
+            Sample action, calculate value, logprob, entropy, and update storage.
+            Returns logprob, entropy, and value
+            '''
             if args.action_type == "discrete":
                 logits = actor.apply(actor_state_params, x, indices=actor_state.indices)
                 dist = distrax.Categorical(logits=logits)
@@ -605,8 +616,11 @@ if __name__ == "__main__":
             next_done: np.ndarray,
             storage: Storage,
         ):
-            # We use the original paper's computation of the GAE estimate as they implement a JAX optimization technique that is not specified by the original paper
-            # Functionally they perform the same backwards calculation of the advantages like in hw2.py
+            '''
+            Helper function to calculate the GAE estimate from the original SYMPOL paper.
+            We use the original paper's computation of the GAE estimate as they implement a JAX optimization technique that is not specified in their writeup.
+            Functionally, they perform the same backwards calculation of advantages as in hw2.py
+            '''
             def compute_gae_once(carry, inp):
                 advantages = carry
                 nextdone, nextvalues, curvalues, reward = inp
@@ -632,6 +646,9 @@ if __name__ == "__main__":
 
         @jax.jit
         def ppo_loss_base(actor_state_params, critic_state_params, x, a, logp, mb_advantages, mb_returns):
+            '''
+            Standard PPO loss calculation taken from Clean-RL's implementation of PPO at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppo_atari_envpool_xla_jaxpy
+            '''
             newlogprob, entropy, newvalue = get_action_and_value2(actor_state_params, critic_state_params, x, a)
             logratio = newlogprob - logp
             ratio = jnp.exp(logratio)
@@ -655,6 +672,10 @@ if __name__ == "__main__":
 
 
         def create_rollout(n_steps, envs):
+            '''
+            Helper function from original paper which generates rollout and updates Storage object with environment details.
+            We adapt the function by fixing action index mapping
+            '''
             def rollout_(actor_state, critic_state, episode_stats, next_obs, next_done, storage, key, global_step):
                 for step in range(0, n_steps):
                     global_step += args.n_envs
@@ -704,8 +725,6 @@ if __name__ == "__main__":
         ppo_loss_base_grad_fn = jax.value_and_grad(ppo_loss_base, argnums=(0, 1), has_aux=True)
 
 
-        # Using the ppo-standard loss and compute_actions functions, we take update_ppo() from the original paper as it makes unique JAX optimizations
-        # that are not evident from the paper itself
         @jax.jit
         def update_ppo(
             actor_state: TrainState,
@@ -713,6 +732,10 @@ if __name__ == "__main__":
             storage: Storage,
             key: jax.random.PRNGKey,
         ):
+            '''
+            Helper function which performs the PPO update on the actor and critic networks.
+            We re-use this function directly because the authors do not explain or specify their optimizations using jax.lax.scan(), which affects the implementation results.
+            '''
             def update_epoch(carry, unused_inp):
                 actor_state, critic_state, key = carry
                 key, subkey = jax.random.split(key)
@@ -762,6 +785,7 @@ if __name__ == "__main__":
 
         while global_step < args.total_steps:       
             wandb_log = {}
+            # To minimize variance from the original paper, we use the same n_steps exponential scaling as ppo.py. This ensures proper exploration by the agent.
             increase_factor = int(2**(np.ceil((((global_step+1)*8)/(1+args.total_steps)))-1))
             n_steps = initial_steps * increase_factor           
             batch_size = int(args.n_envs * n_steps)
@@ -776,7 +800,7 @@ if __name__ == "__main__":
                 ),
                 actions=jnp.zeros(
                     (n_steps, args.n_envs) + envs.single_action_space.shape if args.n_envs > 1 else (n_steps, args.n_envs) + envs.action_space.shape, 
-                    dtype=jnp.int32
+                    dtype=(jnp.int32 if args.action_type == "discrete" else jnp.float32)
                 ),
                 logprobs=jnp.zeros((n_steps, args.n_envs)),
                 dones=jnp.zeros((n_steps, args.n_envs)),
@@ -800,6 +824,8 @@ if __name__ == "__main__":
             
             avg_episodic_return = np.mean(np.array(episode_stats.returned_episode_returns))
             avg_episodic_return_list.append(avg_episodic_return)
+
+            # Performs training evaluations at every (global_step + batch_size) bucket and at the first iteration
             if iteration == 1 or current_eval > last_eval or global_step + batch_size >= args.total_steps:
                 last_eval = current_eval
                 render_now = True if args.render_each_eval else True if global_step + batch_size >= args.total_steps else False
@@ -834,7 +860,7 @@ if __name__ == "__main__":
                 # The following wandb logging code is taken directly from the original codebase as it is not important to our replication
                 print(f"Train: global_step={global_step}, avg_eval_episodic_return={avg_score} (Elapsed time: {elapsed_time} seconds)")
 
-                # Train-time eval/testing statistics
+                # Train-time eval statistics
                 wandb_log['train/avg_score'] = avg_score
                 wandb_log['train/std_score'] = std_score
                 wandb_log['train/score_list'] = score
@@ -842,6 +868,7 @@ if __name__ == "__main__":
                 avg_score_list.append(avg_score)
                 wandb_log['train/node_count'] = node_count
 
+                # Performs testing evaluation for the policy at the final evaluation step
                 if global_step + batch_size >= args.total_steps:
                     # Using the same final eval seed for reproducibility
                     test_seed = 123456
