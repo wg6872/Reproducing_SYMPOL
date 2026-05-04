@@ -676,7 +676,7 @@ if __name__ == "__main__":
         def create_rollout(n_steps, envs):
             '''
             Helper function from original paper which generates rollout and updates Storage object with environment details.
-            We adapt the function by fixing action index mapping. However, we maintain the function nesting for cleaner function call in main loop
+            We adapt the function by fixing action index mapping. We maintain the function nesting as rollout() and create_rollout() are used separately in the main loop.
             '''
             def rollout_(actor_state, critic_state, episode_stats, next_obs, next_done, storage, key, global_step):
                 for step in range(0, n_steps):
