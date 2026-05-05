@@ -797,8 +797,4 @@ def plot_decision_tree_soft(split_values, split_indices, leaf_values, image_path
     node_count = count_nodes(tree_representation)
     plot_path = plot_tree_from_representation_soft(tree_representation, image_path, filename_appendix='', observation_labels=observation_labels)
     
-<<<<<<< HEAD
     return plot_path, node_count['internal'] + node_count['leaf']
-=======
-    return plot_path, node_count['internal'] + node_count['leaf']
->>>>>>> main
