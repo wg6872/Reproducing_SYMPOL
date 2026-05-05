@@ -113,8 +113,8 @@ class SYMPOL:
         Input: 
         - params: 
             tree parameters
-        - inputs: [num_leaves,]
-            vector of feature assignments 
+        - inputs: [num_states,]
+            vector of all state observations (when batched, dimension 0 is batch size)
         Output
         - policy: [num_leaves, num_actions]
         """
