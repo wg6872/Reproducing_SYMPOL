@@ -281,7 +281,7 @@ def apply_env_defaults(args: Args) -> Args:
 
 def evaluate_mlp(env_id, actor, actor_params, n_episodes, is_discrete, seed=100,
                  render_env=False, render_now=False, capture_video=False, track=False):
-    """Evaluate the MLP actor deterministically."""
+    """Evaluate a MLP actor."""
     scores = []
     name_appendix = "_mlp"
     for ep in range(n_episodes):
@@ -330,7 +330,7 @@ def evaluate_mlp(env_id, actor, actor_params, n_episodes, is_discrete, seed=100,
 
 def evaluate_sadt(env_id, decision_tree, n_episodes, is_discrete, action_dim, seed=100,
                   render_env=False, render_now=False, capture_video=False, track=False):
-    """Evaluate a fitted SA-DT decision tree."""
+    """Evaluates a fitted SA-DT decision tree."""
     scores = []
     name_appendix = "_sadt"
     for ep in range(n_episodes):
@@ -630,7 +630,12 @@ def run_trial(args: Args, random_trial: int = 1):
         return advantages, advantages
 
     compute_gae_step = partial(compute_gae_step, gamma=args.gamma, gae_lambda=args.gae_lambda)
-
+    
+    '''
+    Calculate the GAE estimate from the original SYMPOL paper.
+    Scaffold from original paper's computation of the GAE estimate sicne they use a JAX optimization technique that is not specified in the paper.
+    Does the same thing in hw2.py
+    '''
     @jax.jit
     def compute_gae(
         critic_state: TrainState,
@@ -686,6 +691,9 @@ def run_trial(args: Args, random_trial: int = 1):
     ppo_loss_grad_fn = jax.value_and_grad(ppo_loss, argnums=(0, 1), has_aux=True)
 
     # PPO update with double jax.lax.scan
+    # the PPO loop. Directly reimplement because the authors do not 
+    # explain or specify their optimizations using jax.lax.scan() in the paper
+    # which affects results.
     @jax.jit
     def update_ppo(
         actor_state: ActorTrainState,
