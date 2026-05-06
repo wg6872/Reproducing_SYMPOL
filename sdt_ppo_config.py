@@ -2,6 +2,7 @@
 # Author(s): Evan Soper
 # Parameters for SDT-related benchmarks using PPO
 # Adapted from: https://github.com/s-marton/SYMPOL/blob/master/configs.py
+# Optimal hyperparameters are taken from the paper.
 
 import argparse
 

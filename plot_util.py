@@ -1,10 +1,11 @@
+# sdt_ppo.py
+# Author(s): Evan Soper
+# Util functions for visualizing D-SDT trees
+# Adapted from: https://github.com/s-marton/SYMPOL/blob/master/utils.py
+
 import numpy as np
 import graphviz
 
-
-# ---------------------------
-# OPTIONAL: nicer feature names
-# ---------------------------
 OBSERVATION_LABELS = {
     "CartPole-v1": [
         "cart_position",
@@ -19,10 +20,6 @@ OBSERVATION_LABELS = {
     ],
 }
 
-
-# ---------------------------
-# Build tree structure
-# ---------------------------
 def convert_to_child_representation(split_values, split_indices, leaf_values):
     num_internal_nodes = split_values.shape[0]
 
@@ -49,10 +46,6 @@ def convert_to_child_representation(split_values, split_indices, leaf_values):
 
     return build(0)
 
-
-# ---------------------------
-# Plot with Graphviz
-# ---------------------------
 def plot_tree(tree, path, obs_labels=None):
     dot = graphviz.Digraph()
     dot.attr(rankdir="TB")
@@ -61,8 +54,8 @@ def plot_tree(tree, path, obs_labels=None):
         node_id = str(id(node))
 
         if node["type"] == "leaf":
-            action = int(np.argmax(node["distribution"]))
-            label = f"Action: {action}"
+            value = np.asarray(node["distribution"]).squeeze()
+            label = f"Value: {np.array2string(value, precision=3)}"
             dot.node(node_id, label, shape="box")
             return node_id
 
@@ -89,10 +82,6 @@ def plot_tree(tree, path, obs_labels=None):
     dot.render(path, format="png", cleanup=True)
     return path + ".png"
 
-
-# ---------------------------
-# MAIN FUNCTION YOU CALL
-# ---------------------------
 def plot_dsdt_from_params(params, config, out_path="tree"):
     """
     params = actor_state.params AFTER convert_to_discrete(...)
@@ -102,9 +91,10 @@ def plot_dsdt_from_params(params, config, out_path="tree"):
 
     kernel = np.array(sdt["internal"]["kernel"])   # (obs_dim, nodes)
     bias = np.array(sdt["internal"]["bias"])       # (nodes,)
-    leaves = np.array(sdt["leaves"]["kernel"])     # (leaves, actions)
+    leaf_kernel = np.array(sdt["leaves"]["kernel"])
+    leaf_bias = np.array(sdt["leaves"]["bias"])
+    leaves = leaf_kernel + leaf_bias     # (leaves, actions)
 
-    # IMPORTANT: match their logic
     split_indices = kernel.T
     split_values = (kernel.T * bias[:, None])
 
