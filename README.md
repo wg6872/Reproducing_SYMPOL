@@ -36,4 +36,12 @@ To run an environment using our version of SYMPOL, use the ```env_id``` argument
   journal={arXiv preprint arXiv:2408.08761},
   year={2024}
 }
+
+@misc{wandb,
+title = {Experiment Tracking with Weights and Biases},
+year = {2020},
+note = {Software available from wandb.com},
+url={https://www.wandb.com/},
+author = {Biewald, Lukas},
+}
 ```
