@@ -30,7 +30,6 @@ from plot_util import plot_dsdt_from_params
 # Fix OOM issues
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "0"
 
-# TODO: replace when wandb project is made
 os.environ["WANDB_MODE"] = "online"
 
 @flax.struct.dataclass
