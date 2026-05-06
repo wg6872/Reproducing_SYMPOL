@@ -25,6 +25,7 @@ from env_wrappers import FlatCurrentReducedWrapper, NormalizeWrapperLunarLander
 from sdt_ppo_config import get_args, get_sdt_params, get_mlp_params
 from sdt import Actor_SDT, Critic_SDT
 from mlp import Critic_MLP
+from plot_util import plot_dsdt_from_params
 
 # Fix OOM issues
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "0"
@@ -521,7 +522,7 @@ def convert_to_discrete(params, is_discrete):
 
     return freeze(new_params)
 
-def evaluate_agent(actor_state, config, is_discrete, action_indices, seed=100):
+def evaluate_agent(actor_state, config, is_discrete, action_indices, step, seed=100):
     """
     Evaluate the current actor.
     
@@ -532,6 +533,15 @@ def evaluate_agent(actor_state, config, is_discrete, action_indices, seed=100):
 
     if config["actor"] == "d-sdt":
         eval_params = convert_to_discrete(actor_state.params, is_discrete)
+        
+        # plot thehard tree
+        img_path = plot_dsdt_from_params(
+            eval_params,
+            config,
+            out_path=f"dsdt_{step}"
+        )
+
+        wandb.log({"D-SDT": wandb.Image(img_path)})
     else:
         eval_params = actor_state.params
 
@@ -675,14 +685,14 @@ def main(trial):
         if is_first or is_new or is_final:
             last_eval = current_eval
             
-            eval_score, eval_std = evaluate_agent(actor_state, config, is_discrete, action_indices)
+            eval_score, eval_std = evaluate_agent(actor_state, config, is_discrete, action_indices, global_step)
 
             print(f"[eval] step={global_step} score={eval_score}")
             eval.append((global_step, eval_score))
             train.append((global_step, avg_return))
             
             wandb.log({
-                "test/avg_score": eval_score,
+                f"test/{config['actor']}_avg_score": eval_score,
                 "test/avg_std": eval_std,
                 "global_step": global_step
             })
@@ -691,15 +701,15 @@ def main(trial):
         
         avg_episodic_return_100 = np.mean(avg_episodic_return_list[-100:])
         wandb.log({
-            "train/avg_episodic_return": avg_return,
-            "train/avg_episodic_return_100": avg_episodic_return_100,
+            f"train/{config['actor']}_avg_episodic_return": avg_return,
+            f"train/{config['actor']}_avg_episodic_return_100": avg_episodic_return_100,
             "global_step": global_step
         })
     
     return train, eval
         
 if __name__ == '__main__':
-    for trial in range(5):
+    for trial in range(1):
         print(f"\n=== Starting trial {trial} ===\n")
         train, eval = main(trial)
         wandb.finish()
