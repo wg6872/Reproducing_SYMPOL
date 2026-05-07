@@ -9,6 +9,29 @@ We replicate "Mitigating Information Loss in Tree-Based Reinforcement Learning v
 
 To run an environment using our version of SYMPOL, use the ```env_id``` argument for ```ppo_sympol.py```.
 
+### MLP and SA-DT
+`ppo_mlp_sadt.py` uses `requirements_sympol.txt`.
+
+This version uses `jax==0.4.31` and not the CUDA-enabled jax package.
+
+To run the MLP baseline, choose an environment with `--env-id` and set `--actor mlp`. The script automatically applies the environment-specific hyperparameters defined in `ppo_mlp_sadt.py`.
+
+```bash
+python ppo_mlp_sadt.py --env-id CartPole-v1 --actor mlp
+```
+
+To train the MLP and then distill it into a state-action decision tree, run the same script with `--actor sadt`.
+
+```bash
+python ppo_mlp_sadt.py --env-id CartPole-v1 --actor sadt
+```
+
+You can also override optional settings such as the number of random trials, evaluation frequency, tree depth, rendering, video capture, and wandb tracking:
+
+```bash
+python ppo_mlp_sadt.py --env-id CartPole-v1 --actor sadt --random-trials 1 --sadt-max-depth 4 --render-env --track
+```
+
 ## References
 ```
 @article{huang2022cleanrl,
