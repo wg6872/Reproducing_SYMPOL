@@ -24,7 +24,7 @@ from minigrid.wrappers import OneHotPartialObsWrapper, ViewSizeWrapper
 from sdt_env_wrappers import FlatCurrentReducedWrapper, NormalizeWrapperLunarLander
 from sdt_ppo_config import get_args, get_sdt_params, get_mlp_params
 from sdt import Actor_SDT, Critic_SDT
-from mlp import Critic_MLP
+from mlp import CriticMLP
 from sdt_plot_util import plot_dsdt_from_params
 
 # Fix OOM issues
@@ -200,7 +200,7 @@ def get_actor_and_critic_state(config, envs, action_dim, is_discrete):
     if config['critic'] == 'sdt':
         critic = Critic_SDT(config['depth'])
     else:
-        critic = Critic_MLP(config['num_layers'], config['neurons_per_layer'])
+        critic = CriticMLP(config['num_layers'], config['neurons_per_layer'])
 
     # in JAX, parameters have to be passed explicitly when the model is initialized
     # with a key (ensures randomness) and a fake observation (to init. architecture shape) 
