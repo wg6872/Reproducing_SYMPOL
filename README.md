@@ -90,10 +90,10 @@ python ppo_mlp_sadt.py --env-id CartPole-v1 --actor sadt --random-trials 1 --sad
 }
 
 @misc{wandb,
-title = {Experiment Tracking with Weights and Biases},
-year = {2020},
-note = {Software available from wandb.com},
-url={https://www.wandb.com/},
-author = {Biewald, Lukas},
+  title = {Experiment Tracking with Weights and Biases},
+  year = {2020},
+  note = {Software available from wandb.com},
+  url={https://www.wandb.com/},
+  author = {Biewald, Lukas},
 }
 ```
