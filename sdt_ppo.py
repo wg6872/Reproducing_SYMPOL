@@ -103,8 +103,6 @@ def setup():
         config=config,
         name=run_name,
         group=args.run_name,
-        monitor_gym=True,
-        save_code=True, 
     )
     
     train_cfg = TrainConfig(
@@ -528,18 +526,18 @@ def cohen_d(x, y):
 
     nx, ny = len(x), len(y)
     if nx < 2 or ny < 2:
-        return 0.0
+        return np.nan
     
     sx, sy = np.std(x, ddof=1), np.std(y, ddof=1)
 
     pooled_std = np.sqrt(((nx - 1) * sx**2 + (ny - 1) * sy**2) / (nx + ny - 2))
 
     if pooled_std < 1e-8:
-        return 0.0
+        return np.nan
 
     return float((np.mean(x) - np.mean(y)) / pooled_std)
 
-def evaluate_agent(actor_state, config, is_discrete, action_indices, step, seed=100):
+def evaluate_agent(actor_state, config, is_discrete, action_indices, is_final, seed=100):
     """NOTE: The only difference between SDT and D-SDT is this evaluation."""
     env = make_env(config["env_id"])
 
@@ -576,18 +574,21 @@ def evaluate_agent(actor_state, config, is_discrete, action_indices, step, seed=
         return scores
 
     # SDT evaluation
-    sdt_scores = run_eval(actor_state.params, hard_tree=False)
+    if is_final:
+        sdt_scores = run_eval(actor_state.params, hard_tree=False)
+    else:
+        sdt_scores = 0
 
     # D-SDT evaluation
     dsdt_params = convert_to_discrete(actor_state.params, is_discrete)
     dsdt_scores = run_eval(dsdt_params, hard_tree=True)
 
-    img_path = plot_dsdt_from_params(
-        dsdt_params,
-        config,
-        out_path=f"dsdt_{step}"
-    )
-    wandb.log({"D-SDT": wandb.Image(img_path), "global_step": step})
+    # img_path = plot_dsdt_from_params(
+    #     dsdt_params,
+    #     config,
+    #     out_path=f"dsdt_{step}"
+    # )
+    # wandb.log({"D-SDT": wandb.Image(img_path), "global_step": step})
 
     env.close()
 
@@ -596,7 +597,10 @@ def evaluate_agent(actor_state, config, is_discrete, action_indices, step, seed=
     dsdt_mean = float(np.mean(dsdt_scores))
     dsdt_std = float(np.std(dsdt_scores))
 
-    d = cohen_d(sdt_scores, dsdt_scores)
+    if is_final:
+        d = cohen_d(sdt_scores, dsdt_scores)
+    else:
+        d = 0
 
     return sdt_mean, sdt_std, dsdt_mean, dsdt_std, d
 
@@ -713,7 +717,7 @@ def main(trial):
                 config,
                 is_discrete,
                 action_indices,
-                global_step
+                is_final
             )
 
             if config['actor'] == 'sdt':
@@ -730,9 +734,13 @@ def main(trial):
             wandb.log({
                 f"test/{config['actor']}_avg_score": eval_score,
                 "test/avg_std": eval_std,
-                "test/cohen_d": d,
                 "global_step": global_step
             })
+            
+            if is_final:
+                wandb.log({
+                    "test/cohen_d": d
+                })
 
         iteration += 1
         
@@ -746,7 +754,7 @@ def main(trial):
     return train, eval
         
 if __name__ == '__main__':
-    for trial in range(1):
+    for trial in range(5):
         print(f"\n=== Starting trial {trial} ===\n")
         train, eval = main(trial)
         wandb.finish()

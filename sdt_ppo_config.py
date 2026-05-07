@@ -2,7 +2,7 @@
 # Author(s): Evan Soper
 # Parameters for SDT-related benchmarks using PPO
 # Adapted from: https://github.com/s-marton/SYMPOL/blob/master/configs.py
-# Optimal hyperparameters are taken from the paper.
+# Optimal hyperparameters are taken from the paper
 
 import argparse
 
@@ -48,7 +48,7 @@ SDT_PPO_PARAMS = {
     "MountainCar-v0": {
         "adamW": False,
         "critic": "sdt",
-        "depth": 8,
+        "depth": 7,
         "ent_coef": 0.0,
         "gae_lambda": 0.9,
         "gamma": 0.99,
@@ -121,7 +121,7 @@ SDT_PPO_PARAMS = {
         "temperature": 1,
         "vf_coef": 0.75,
     },
-    "MiniGrid-LavaGapS5": {
+    "MiniGrid-LavaGapS5-v0": {
         "adamW": False,
         "critic": "sdt",
         "depth": 7,
@@ -140,7 +140,7 @@ SDT_PPO_PARAMS = {
         "temperature": 1,
         "vf_coef": 0.75,
     },
-    "MiniGrid-DoorKey": {
+    "MiniGrid-DoorKey-8x8": {
         "adamW": False,
         "critic": "mlp",
         "depth": 6,
@@ -159,7 +159,7 @@ SDT_PPO_PARAMS = {
         "temperature": 1,
         "vf_coef": 0.75,
     },
-    "MiniGrid-Empty": {
+    "MiniGrid-Empty-8x8": {
         "adamW": False,
         "critic": "sdt",
         "depth": 7,
@@ -178,7 +178,7 @@ SDT_PPO_PARAMS = {
         "temperature": 1,
         "vf_coef": 0.75,
     },
-    "MiniGrid-LavaGapS7": {
+    "MiniGrid-LavaGapS7-v0": {
         "adamW": False,
         "critic": "sdt",
         "depth": 8,
@@ -197,7 +197,7 @@ SDT_PPO_PARAMS = {
         "temperature": 1,
         "vf_coef": 0.25,
     },
-    "MiniGrid-DistShift1": {
+    "MiniGrid-DistShift1-v0": {
         "adamW": False,
         "critic": "sdt",
         "depth": 7,
@@ -243,23 +243,23 @@ MLP_PPO_PARAMS = {
         "num_layers": 3,
         "neurons_per_layer": 46,
     },
-    "MiniGrid-LavaGapS5": {
+    "MiniGrid-LavaGapS5-v0": {
         "num_layers": 1,
         "neurons_per_layer": 76,
     },
-    "MiniGrid-DoorKey": {
+    "MiniGrid-DoorKey-8x8": {
         "num_layers": 1,
         "neurons_per_layer": 169,
     },
-    "MiniGrid-Empty": {
+    "MiniGrid-Empty-8x8": {
         "num_layers": 3,
         "neurons_per_layer": 112,
     },
-    "MiniGrid-LavaGapS7": {
+    "MiniGrid-LavaGapS7-v0": {
         "num_layers": 1,
         "neurons_per_layer": 28,
     },
-    "MiniGrid-DistShift1": {
+    "MiniGrid-DistShift1-v0": {
         "num_layers": 2,
         "neurons_per_layer": 158,
     },

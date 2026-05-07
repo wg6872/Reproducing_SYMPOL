@@ -79,7 +79,7 @@ def plot_tree(tree, path, obs_labels=None):
         return node_id
 
     traverse(tree)
-    # dot.render(path, format="png", cleanup=True)
+    dot.render(path, format="png", cleanup=True)
     return path + ".png"
 
 def plot_dsdt_from_params(params, config, out_path="tree"):
