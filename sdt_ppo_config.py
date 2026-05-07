@@ -159,7 +159,7 @@ SDT_PPO_PARAMS = {
         "temperature": 1,
         "vf_coef": 0.75,
     },
-    "Minigrid-Empty-Random-6x6-v0": {
+    "Minigrid-EmptyRandom-6x6-v0": {
         "adamW": False,
         "critic": "sdt",
         "depth": 7,
