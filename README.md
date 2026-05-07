@@ -64,6 +64,31 @@ python ppo_mlp_sadt.py --env-id CartPole-v1 --actor sadt --random-trials 1 --sad
   year={2024}
 }
 
+@inproceedings{MinigridMiniworld23,
+  author       = {Maxime Chevalier{-}Boisvert and Bolun Dai and Mark Towers and Rodrigo Perez{-}Vicente and Lucas Willems and Salem Lahlou and Suman Pal and Pablo Samuel Castro and Jordan Terry},
+  title        = {Minigrid {\&} Miniworld: Modular {\&} Customizable Reinforcement Learning Environments for Goal-Oriented Tasks},
+  booktitle    = {Advances in Neural Information Processing Systems 36, New Orleans, LA, USA},
+  month        = {December},
+  year         = {2023},
+}
+
+@article{Pedregosa_Scikit-learn_Machine_Learning_2011,
+  author = {Pedregosa, Fabian and Varoquaux, Gaël and Gramfort, Alexandre and Michel, Vincent and Thirion, Bertrand and Grisel, Olivier and Blondel, Mathieu and Prettenhofer, Peter and Weiss, Ron and Dubourg, Vincent and Vanderplas, Jake and Passos, Alexandre and Cournapeau, David and Brucher, Matthieu and Perrot, Matthieu and Duchesnay, Édouard},
+  journal = {Journal of Machine Learning Research},
+  pages = {2825--2830},
+  title = {{Scikit-learn: Machine Learning in Python}},
+  url = {https://jmlr.csail.mit.edu/papers/v12/pedregosa11a.html},
+  volume = {12},
+  year = {2011}
+}
+
+@article{towers2024gymnasium,
+  title={Gymnasium: A Standard Interface for Reinforcement Learning Environments},
+  author={Towers, Mark and Kwiatkowski, Ariel and Terry, Jordan and Balis, John U and De Cola, Gianluca and Deleu, Tristan and Goul{\~a}o, Manuel and Kallinteris, Andreas and Krimmel, Markus and KG, Arjun and others},
+  journal={arXiv preprint arXiv:2407.17032},
+  year={2024}
+}
+
 @misc{wandb,
 title = {Experiment Tracking with Weights and Biases},
 year = {2020},
