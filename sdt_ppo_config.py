@@ -247,11 +247,11 @@ MLP_PPO_PARAMS = {
         "num_layers": 1,
         "neurons_per_layer": 76,
     },
-    "MiniGrid-DoorKey-8x8": {
+    "MiniGrid-DoorKey-5x5-v0": {
         "num_layers": 1,
         "neurons_per_layer": 169,
     },
-    "MiniGrid-Empty-8x8": {
+    "MiniGrid-EmptyRandom-6x6-v0": {
         "num_layers": 3,
         "neurons_per_layer": 112,
     },
