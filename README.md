@@ -9,6 +9,10 @@ We replicate "Mitigating Information Loss in Tree-Based Reinforcement Learning v
 
 To run an environment using our version of SYMPOL, use the ```env_id``` argument for ```ppo_sympol.py```.
 
+```bash
+python ppo_sympol.py --env_id CartPole-v1
+```
+
 ### MLP and SA-DT
 `ppo_mlp_sadt.py` uses `requirements_sympol.txt`.
 
