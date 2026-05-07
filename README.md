@@ -82,6 +82,14 @@ python ppo_mlp_sadt.py --env-id CartPole-v1 --actor sadt --random-trials 1 --sad
   year = {2011}
 }
 
+@inproceedings{peters2019sparse,
+  title={Sparse sequence-to-sequence models},
+  author={Peters, Ben and Niculae, Vlad and Martins, Andr{\'e} FT},
+  booktitle={Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics},
+  pages={1504--1519},
+  year={2019}
+}
+
 @article{towers2024gymnasium,
   title={Gymnasium: A Standard Interface for Reinforcement Learning Environments},
   author={Towers, Mark and Kwiatkowski, Ariel and Terry, Jordan and Balis, John U and De Cola, Gianluca and Deleu, Tristan and Goul{\~a}o, Manuel and Kallinteris, Andreas and Krimmel, Markus and KG, Arjun and others},
