@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
-def collect_expert_trajectories(env, expert_apply_fn, expert_params, n_episodes: int, action_type: str, seed: int = 0):
+def collect_expert_trajectories(env, expert_apply_fn, expert_params, n_episodes: int, action_type: str, seed: int = 0, action_indices=None):
     """
     Collect state-action pairs by rolling out an expert policy in the environment.
     
@@ -48,12 +48,18 @@ def collect_expert_trajectories(env, expert_apply_fn, expert_params, n_episodes:
             states.append(obs)
             actions.append(action)
             
+            # Remap action indices for environments with reduced action spaces (e.g. DoorKey)
+            # The MLP outputs indices 0..N-1 for N actions, but the env expects the original action IDs
+            env_action = action
+            if action_indices is not None and action_type == 'discrete':
+                env_action = action_indices[int(action)]
+            
             # execute action and transition to next state
-            obs, reward, done, trunc, info = env.step(np.array(action))
+            obs, reward, done, trunc, info = env.step(np.array(env_action))
             
     return np.array(states), np.array(actions)
 
-def fit_state_action_dt(env, expert_apply_fn, expert_params, max_depth: int, n_episodes: int = 25, action_type: str = 'discrete', action_dim: int = 1, seed: int = 0):
+def fit_state_action_dt(env, expert_apply_fn, expert_params, max_depth: int, n_episodes: int = 25, action_type: str = 'discrete', action_dim: int = 1, seed: int = 0, action_indices=None):
     """
     Implements the state-action decision tree (sa-dt) baseline.
     
@@ -86,7 +92,8 @@ def fit_state_action_dt(env, expert_apply_fn, expert_params, max_depth: int, n_e
         expert_params, 
         n_episodes=n_episodes, 
         action_type=action_type, 
-        seed=seed
+        seed=seed,
+        action_indices=action_indices,
     )
     
     if action_type == 'discrete':

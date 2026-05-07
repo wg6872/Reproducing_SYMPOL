@@ -45,7 +45,7 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "0"
 class Args:
     random_trials: int = 5
     """Number of random experiment runs """
-    exp_name: str = os.path.basename(__file__)[: -len(".py")]
+    exp_name: str = ""
     """the name of this experiment"""
     seed: int = 42
     """seed of the experiment"""
@@ -55,19 +55,17 @@ class Args:
     """if toggled, cuda will be enabled by default"""
     track: bool = False
     """if toggled, this experiment will be tracked with wandb"""
-    wandb_project_name: str = "mlp_sadt_sympol"
-    """the wandb's project name"""
-    wandb_entity: str = None
-    """the entity (team) of wandb's project"""
     capture_video: bool = False
     """whether to capture videos of the agent performances"""
     render_env: bool = False
     """whether to render and save interpretables ike decision-tree plots"""
     render_each_eval: bool = False
     """whether to render artifacts at every evaluation instead of only the final one"""
+    view_size: int = 3
+    """agent view size for MiniGrid environments"""
     env_id: str = "CartPole-v1"
     """the id of the environment"""
-    actor: Literal["mlp", "stateActionDT"] = "mlp"
+    actor: Literal["mlp", "sadt"] = "mlp"
     """The type of actor to train."""
     total_timesteps: int = 1_000_000
     """Total training timesteps."""
@@ -271,7 +269,7 @@ ENV_CONFIGS = {
 }
 
 def apply_env_defaults(args: Args) -> Args:
-    if args.env_id in ENV_CONFIGS and args.actor in ["mlp", "stateActionDT"]:
+    if args.env_id in ENV_CONFIGS and args.actor in ["mlp", "sadt"]:
         config = ENV_CONFIGS[args.env_id]
         for key, val in config.items():
             setattr(args, key, val)
@@ -280,12 +278,13 @@ def apply_env_defaults(args: Args) -> Args:
 
 
 def evaluate_mlp(env_id, actor, actor_params, n_episodes, is_discrete, seed=100,
-                 render_env=False, render_now=False, capture_video=False, track=False):
+                 render_env=False, render_now=False, capture_video=False, track=False,
+                 view_size=3, action_indices=None):
     """Evaluate a MLP actor."""
     scores = []
     name_appendix = "_mlp"
     for ep in range(n_episodes):
-        env = build_env(env_id, n_env=1)
+        env = build_env(env_id, n_env=1, view_size=view_size)
         obs, _ = env.reset(seed=seed + ep)
         done, trunc = False, False
         total_reward = 0.0
@@ -313,6 +312,11 @@ def evaluate_mlp(env_id, actor, actor_params, n_episodes, is_discrete, seed=100,
             # continuous mlp case
                 mean, log_std = actor.apply(actor_params, np.array([obs]))
                 action = np.array(mean[0])
+
+            # Remap action indices for MiniGrid environments with reduced action spaces
+            if action_indices is not None and is_discrete:
+                action = action_indices[action]
+
             obs, reward, done, trunc, _ = env.step(action)
             total_reward += reward
             step_counter += 1
@@ -329,12 +333,13 @@ def evaluate_mlp(env_id, actor, actor_params, n_episodes, is_discrete, seed=100,
 
 
 def evaluate_sadt(env_id, decision_tree, n_episodes, is_discrete, action_dim, seed=100,
-                  render_env=False, render_now=False, capture_video=False, track=False):
+                  render_env=False, render_now=False, capture_video=False, track=False,
+                  view_size=3, action_indices=None):
     """Evaluates a fitted SA-DT decision tree."""
     scores = []
     name_appendix = "_sadt"
     for ep in range(n_episodes):
-        env = build_env(env_id, n_env=1)
+        env = build_env(env_id, n_env=1, view_size=view_size)
         obs, _ = env.reset(seed=seed + ep)
         done, trunc = False, False
         total_reward = 0.0
@@ -360,6 +365,11 @@ def evaluate_sadt(env_id, decision_tree, n_episodes, is_discrete, action_dim, se
                 action = decision_tree.predict(flat_obs)
             else:
                 action = np.array([decision_tree[i].predict(flat_obs)[0] for i in range(action_dim)])
+
+            # Remap action indices for MiniGrid environments with reduced action spaces
+            if action_indices is not None and is_discrete:
+                action = action_indices[action]
+
             obs, reward, done, trunc, _ = env.step(action)
             total_reward += reward
             step_counter += 1
@@ -478,12 +488,18 @@ def run_trial(args: Args, random_trial: int = 1):
     while batch_size // minibatch_size < 2:
         minibatch_size = minibatch_size // 2
 
+    if not args.exp_name:
+        args.exp_name = "SA_DT" if args.actor == "sadt" else "MLP"
+        
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    wandb_project_name = f"{args.exp_name}_{args.env_id}"
+    if args.actor == "sadt":
+        wandb_project_name = f"{args.exp_name}_depth{args.sadt_max_depth}_{args.env_id}"
 
     if args.track:
         wandb.init(
-            project=args.wandb_project_name,
-            entity=args.wandb_entity,
+            project=wandb_project_name,
+            group=args.exp_name,
             config=vars(args),
             name=run_name,
             save_code=True,
@@ -499,13 +515,31 @@ def run_trial(args: Args, random_trial: int = 1):
     model_key, actor_key, critic_key = jax.random.split(model_key, 3)
 
     # environment setup, used from util.py from sympol repo
-    envs = build_env(args.env_id, n_env=args.n_envs)
-    is_discrete = isinstance(envs.single_action_space, gym.spaces.Discrete)
-    action_type = "discrete" if is_discrete else "continuous"
-    if is_discrete:
-        action_dim = envs.single_action_space.n
-    else:
-        action_dim = envs.single_action_space.shape[-1]
+    envs = build_env(args.env_id, n_env=args.n_envs, view_size=args.view_size)
+
+    # In order to replicate the same experiments, we have to index the same subset of actions as the original paper
+    args.obs_dim = envs.single_observation_space.shape[-1]
+    if isinstance(envs.single_action_space, gym.spaces.Discrete):
+        args.action_type = "discrete"
+        if any(substring in args.env_id for substring in ['DistShift', 'Empty', 'LavaGap']):
+            args.action_dim = 3
+            args.action_indices = [0,1,2]
+        elif "DoorKey" in args.env_id:
+            args.action_dim = 5
+            args.action_indices = [0,1,2,3,5]
+        else:
+            args.action_dim = envs.single_action_space.n
+            args.action_indices = [i for i in range(args.action_dim)]
+    elif isinstance(envs.single_action_space, gym.spaces.Box):
+        args.action_dim = envs.single_action_space.shape[-1]
+        args.action_indices = [i for i in range(args.action_dim)]
+        args.action_type = "continuous"
+
+    is_discrete = args.action_type == "discrete"
+    action_type = args.action_type
+    action_dim = args.action_dim
+    action_indices = args.action_indices
+
 
     print(f"Env: {args.env_id} | Obs: {envs.single_observation_space.shape} | "
           f"Actions: {action_dim} ({action_type}) | Actor: {args.actor}")
@@ -847,6 +881,9 @@ def run_trial(args: Args, random_trial: int = 1):
                 actor_state, critic_state, next_obs, next_done, storage, step, key
             )
             action_np = np.array(action)
+            # Remap action indices for MiniGrid environments with reduced action spaces
+            if any(substring in args.env_id for substring in ['DoorKey']):
+                action_np = np.array([action_indices[single_action] for single_action in action_np])
             next_obs, reward, next_done, trunc, info = envs.step(action_np)
 
             # Track episode statistics
@@ -892,7 +929,8 @@ def run_trial(args: Args, random_trial: int = 1):
                 args.env_id, actor, actor_state.params,
                 args.n_eval_episodes, is_discrete, seed=env_seed,
                 render_env=args.render_env, render_now=render_now,
-                capture_video=args.capture_video, track=args.track
+                capture_video=args.capture_video, track=args.track,
+                view_size=args.view_size, action_indices=action_indices
             )
             avg_mlp = np.mean(mlp_scores)
             std_mlp = np.std(mlp_scores)
@@ -905,8 +943,8 @@ def run_trial(args: Args, random_trial: int = 1):
             ) if len(history_train_return) >= 1 else avg_episodic_return
 
             # Evaluate SA-DT if requested
-            if args.actor == "stateActionDT":
-                eval_env = build_env(args.env_id, n_env=1)
+            if args.actor == "sadt":
+                eval_env = build_env(args.env_id, n_env=1, view_size=args.view_size)
 
                 dt = fit_state_action_dt(
                     eval_env,
@@ -917,6 +955,7 @@ def run_trial(args: Args, random_trial: int = 1):
                     action_type=action_type,
                     action_dim=action_dim,
                     seed=args.seed,
+                    action_indices=action_indices,
                 )
                 eval_env.close()
 
@@ -924,7 +963,8 @@ def run_trial(args: Args, random_trial: int = 1):
                     args.env_id, dt, args.n_eval_episodes,
                     is_discrete, action_dim, seed=env_seed,
                     render_env=args.render_env, render_now=render_now,
-                    capture_video=args.capture_video, track=args.track
+                    capture_video=args.capture_video, track=args.track,
+                    view_size=args.view_size, action_indices=action_indices
                 )
                 avg_sadt = np.mean(sadt_scores)
                 std_sadt = np.std(sadt_scores)
@@ -983,7 +1023,8 @@ def run_trial(args: Args, random_trial: int = 1):
                     args.env_id, actor, actor_state.params,
                     args.n_eval_episodes, is_discrete, seed=test_seed,
                     render_env=args.render_env, render_now=True,
-                    capture_video=args.capture_video, track=args.track
+                    capture_video=args.capture_video, track=args.track,
+                    view_size=args.view_size, action_indices=action_indices
                 )
                 avg_mlp_test = np.mean(final_mlp_scores)
                 std_mlp_test = np.std(final_mlp_scores)
@@ -994,7 +1035,7 @@ def run_trial(args: Args, random_trial: int = 1):
 
                 if args.track:
                     wandb.log({
-                        "charts/global_step": global_step,
+                        "global_step": global_step,
                         "charts/mlp_test_mean_mlp": avg_mlp_test,
                         "charts/mlp_test_std_mlp": std_mlp_test,
                     })
@@ -1008,7 +1049,7 @@ def run_trial(args: Args, random_trial: int = 1):
                     "losses/entropy": np.mean(entropy_loss[-1]),
                     "losses/approx_kl": np.mean(approx_kl[-1]),
                     "losses/loss": np.mean(loss[-1]),
-                    "charts/global_step": global_step,
+                    "global_step": global_step,
                 })
             except Exception:
                 pass
@@ -1022,18 +1063,20 @@ def run_trial(args: Args, random_trial: int = 1):
             args.env_id, actor, actor_state.params,
             args.n_eval_episodes, is_discrete, seed=test_seed,
             render_env=args.render_env, render_now=True,
-            capture_video=args.capture_video, track=args.track
+            capture_video=args.capture_video, track=args.track,
+            view_size=args.view_size, action_indices=action_indices
         )
     print(f"\nFinal MLP Test Score: {np.mean(final_mlp_scores):.2f} "
           f"± {np.std(final_mlp_scores):.2f}")
 
-    if args.actor == "stateActionDT":
-        eval_env = build_env(args.env_id, n_env=1)
+    if args.actor == "sadt":
+        eval_env = build_env(args.env_id, n_env=1, view_size=args.view_size)
 
         dt_final = fit_state_action_dt(
             eval_env, actor.apply, actor_state.params,
             max_depth=args.sadt_max_depth, n_episodes=25,
             action_type=action_type, action_dim=action_dim, seed=args.seed,
+            action_indices=action_indices,
         )
         eval_env.close()
 
@@ -1041,7 +1084,8 @@ def run_trial(args: Args, random_trial: int = 1):
             args.env_id, dt_final, args.n_eval_episodes,
             is_discrete, action_dim, seed=test_seed,
             render_env=args.render_env, render_now=True,
-            capture_video=args.capture_video, track=args.track
+            capture_video=args.capture_video, track=args.track,
+            view_size=args.view_size, action_indices=action_indices
         )
         print(f"Final SA-DT Test Score: {np.mean(final_sadt_scores):.2f} "
               f"± {np.std(final_sadt_scores):.2f}")
