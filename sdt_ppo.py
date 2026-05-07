@@ -521,60 +521,84 @@ def convert_to_discrete(params, is_discrete):
 
     return freeze(new_params)
 
-def evaluate_agent(actor_state, config, is_discrete, action_indices, step, seed=100):
-    """
-    Evaluate the current actor.
+def cohen_d(x, y):
+    """Use x = SDT scores, y = D-SDT scores to match paper convention."""
+    x = np.array(x, dtype=np.float32)
+    y = np.array(y, dtype=np.float32)
+
+    nx, ny = len(x), len(y)
+    if nx < 2 or ny < 2:
+        return 0.0
     
-    NOTE: The only difference between SDT and D-SDT is logic in this evaluation.
-    """
+    sx, sy = np.std(x, ddof=1), np.std(y, ddof=1)
+
+    pooled_std = np.sqrt(((nx - 1) * sx**2 + (ny - 1) * sy**2) / (nx + ny - 2))
+
+    if pooled_std < 1e-8:
+        return 0.0
+
+    return float((np.mean(x) - np.mean(y)) / pooled_std)
+
+def evaluate_agent(actor_state, config, is_discrete, action_indices, step, seed=100):
+    """NOTE: The only difference between SDT and D-SDT is this evaluation."""
     env = make_env(config["env_id"])
-    scores = []
 
-    if config["actor"] == "d-sdt":
-        eval_params = convert_to_discrete(actor_state.params, is_discrete)
-        
-        # plot thehard tree
-        img_path = plot_dsdt_from_params(
-            eval_params,
-            config,
-            out_path=f"dsdt_{step}"
-        )
+    def run_eval(eval_params, hard_tree=False):
+        scores = []
 
-        wandb.log({"D-SDT": wandb.Image(img_path)})
-    else:
-        eval_params = actor_state.params
+        for ep_index in range(config["n_eval_episodes"]):
+            obs, _ = env.reset(seed=seed + ep_index)
+            done, trunc = False, False
+            total_reward = 0.0
 
-    for ep_index in range(config["n_eval_episodes"]):
-        obs, _ = env.reset(seed=seed + ep_index)
-        done, trunc = False, False
-        total_reward = 0.0
+            while not (done or trunc):
+                obs_batch = jnp.array([obs])
 
-        while not (done or trunc):
-            obs_batch = jnp.array([obs])
+                pol = actor_state.apply_fn(
+                    eval_params,
+                    obs_batch,
+                    max_path=hard_tree
+                )
 
-            if config["actor"] == "d-sdt":
-                # max-path routes all probability mass to the highest probability child
-                pol = actor_state.apply_fn(eval_params, obs_batch, max_path=True)
-            else:
-                pol = actor_state.apply_fn(eval_params, obs_batch, max_path=False)
+                if is_discrete:
+                    action = int(jnp.argmax(pol, axis=-1)[0])
+                    if action_indices is not None:
+                        action = action_indices[action]
+                else:
+                    mean, _ = pol
+                    action = np.array(mean[0])
 
-            if is_discrete:
-                # find the most likely action
-                action = int(jnp.argmax(pol, axis=-1)[0])
-                if action_indices is not None:
-                    # apply the action mapping
-                    action = action_indices[action]
-            else:
-                mean, _ = pol
-                action = np.array(mean[0])
+                obs, reward, done, trunc, _ = env.step(action)
+                total_reward += reward
 
-            obs, reward, done, trunc, _ = env.step(action)
-            total_reward += reward
+            scores.append(total_reward)
 
-        scores.append(total_reward)
+        return scores
+
+    # SDT evaluation
+    sdt_scores = run_eval(actor_state.params, hard_tree=False)
+
+    # D-SDT evaluation
+    dsdt_params = convert_to_discrete(actor_state.params, is_discrete)
+    dsdt_scores = run_eval(dsdt_params, hard_tree=True)
+
+    img_path = plot_dsdt_from_params(
+        dsdt_params,
+        config,
+        out_path=f"dsdt_{step}"
+    )
+    wandb.log({"D-SDT": wandb.Image(img_path), "global_step": step})
 
     env.close()
-    return float(np.mean(scores)), float(np.std(scores))
+
+    sdt_mean = float(np.mean(sdt_scores))
+    sdt_std = float(np.std(sdt_scores))
+    dsdt_mean = float(np.mean(dsdt_scores))
+    dsdt_std = float(np.std(dsdt_scores))
+
+    d = cohen_d(sdt_scores, dsdt_scores)
+
+    return sdt_mean, sdt_std, dsdt_mean, dsdt_std, d
 
 def main(trial):
     config, train_config = setup()
@@ -684,8 +708,21 @@ def main(trial):
         if is_first or is_new or is_final:
             last_eval = current_eval
             
-            eval_score, eval_std = evaluate_agent(actor_state, config, is_discrete, action_indices, global_step)
+            sdt_score, sdt_std, dsdt_score, dsdt_std, d = evaluate_agent(
+                actor_state,
+                config,
+                is_discrete,
+                action_indices,
+                global_step
+            )
 
+            if config['actor'] == 'sdt':
+                eval_score = sdt_score
+                eval_std = sdt_std
+            else:
+                eval_score = dsdt_score
+                eval_std =  dsdt_std
+                
             print(f"[eval] step={global_step} score={eval_score}")
             eval.append((global_step, eval_score))
             train.append((global_step, avg_return))
@@ -693,6 +730,7 @@ def main(trial):
             wandb.log({
                 f"test/{config['actor']}_avg_score": eval_score,
                 "test/avg_std": eval_std,
+                "test/cohen_d": d,
                 "global_step": global_step
             })
 
