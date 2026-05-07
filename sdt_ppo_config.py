@@ -140,7 +140,7 @@ SDT_PPO_PARAMS = {
         "temperature": 1,
         "vf_coef": 0.75,
     },
-    "MiniGrid-DoorKey-8x8": {
+    "DoorKey-5x5-v0": {
         "adamW": False,
         "critic": "mlp",
         "depth": 6,
@@ -159,7 +159,7 @@ SDT_PPO_PARAMS = {
         "temperature": 1,
         "vf_coef": 0.75,
     },
-    "MiniGrid-Empty-8x8": {
+    "Empty-Random-6x6-v0": {
         "adamW": False,
         "critic": "sdt",
         "depth": 7,
