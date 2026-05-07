@@ -21,11 +21,11 @@ from flax.core import freeze, unfreeze
 from flax.training.train_state import TrainState
 from minigrid.wrappers import OneHotPartialObsWrapper, ViewSizeWrapper
 
-from env_wrappers import FlatCurrentReducedWrapper, NormalizeWrapperLunarLander
+from sdt_env_wrappers import FlatCurrentReducedWrapper, NormalizeWrapperLunarLander
 from sdt_ppo_config import get_args, get_sdt_params, get_mlp_params
 from sdt import Actor_SDT, Critic_SDT
 from mlp import Critic_MLP
-from plot_util import plot_dsdt_from_params
+from sdt_plot_util import plot_dsdt_from_params
 
 # Fix OOM issues
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "0"
@@ -91,6 +91,8 @@ def setup():
     
     if args.critic == 'mlp':
         critic_params = get_mlp_params(args.env_id)
+    elif args.critic == 'sdt':
+        critic_params = get_sdt_params(args.env_id)
     else:
         critic_params = {}
     

@@ -1,0 +1,8 @@
+# Weights & Biases
+wandb/
+
+# Python virtual env
+ppo_env/
+
+# VS Code
+.vscode/

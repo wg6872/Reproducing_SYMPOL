@@ -181,7 +181,7 @@ SDT_PPO_PARAMS = {
     "MiniGrid-LavaGapS7-v0": {
         "adamW": False,
         "critic": "sdt",
-        "depth": 8,
+        "depth": 7,
         "ent_coef": 0.1,
         "gae_lambda": 0.95,
         "gamma": 0.95,
