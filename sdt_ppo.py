@@ -575,15 +575,12 @@ def evaluate_agent(actor_state, config, is_discrete, action_indices, is_final, s
 
         return scores
 
-    # SDT evaluation
-    if is_final:
-        sdt_scores = run_eval(actor_state.params, hard_tree=False)
-    else:
-        sdt_scores = 0
-
-    # D-SDT evaluation
-    dsdt_params = convert_to_discrete(actor_state.params, is_discrete)
-    dsdt_scores = run_eval(dsdt_params, hard_tree=True)
+    # evaluation
+    if config["actor"] == 'sdt':
+        scores = run_eval(actor_state.params, hard_tree=False)
+    elif config["actor"] == 'd-sdt':
+        dsdt_params = convert_to_discrete(actor_state.params, is_discrete)
+        scores = run_eval(dsdt_params, hard_tree=True)
 
     # img_path = plot_dsdt_from_params(
     #     dsdt_params,
@@ -594,17 +591,15 @@ def evaluate_agent(actor_state, config, is_discrete, action_indices, is_final, s
 
     env.close()
 
-    sdt_mean = float(np.mean(sdt_scores))
-    sdt_std = float(np.std(sdt_scores))
-    dsdt_mean = float(np.mean(dsdt_scores))
-    dsdt_std = float(np.std(dsdt_scores))
+    score_mean, score_std = float(np.mean(scores)), float(np.std(scores))
 
     if is_final:
-        d = cohen_d(sdt_scores, dsdt_scores)
+        sdt_scores = run_eval(actor_state.params, hard_tree=False)
+        d = cohen_d(sdt_scores, scores)
     else:
-        d = 0
+        d = np.nan
 
-    return sdt_mean, sdt_std, dsdt_mean, dsdt_std, d
+    return score_mean, score_std, d
 
 def main(trial):
     config, train_config = setup()
@@ -714,20 +709,13 @@ def main(trial):
         if is_first or is_new or is_final:
             last_eval = current_eval
             
-            sdt_score, sdt_std, dsdt_score, dsdt_std, d = evaluate_agent(
+            eval_score, eval_std, d = evaluate_agent(
                 actor_state,
                 config,
                 is_discrete,
                 action_indices,
                 is_final
             )
-
-            if config['actor'] == 'sdt':
-                eval_score = sdt_score
-                eval_std = sdt_std
-            else:
-                eval_score = dsdt_score
-                eval_std =  dsdt_std
                 
             print(f"[eval] step={global_step} score={eval_score}")
             eval.append((global_step, eval_score))
