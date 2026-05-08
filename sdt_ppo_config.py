@@ -159,7 +159,7 @@ SDT_PPO_PARAMS = {
         "temperature": 1,
         "vf_coef": 0.75,
     },
-    "Minigrid-EmptyRandom-6x6-v0": {
+    "MiniGrid-Empty-Random-6x6-v0": {
         "adamW": False,
         "critic": "sdt",
         "depth": 7,
@@ -251,7 +251,7 @@ MLP_PPO_PARAMS = {
         "num_layers": 1,
         "neurons_per_layer": 169,
     },
-    "MiniGrid-EmptyRandom-6x6-v0": {
+    "MiniGrid-Empty-Random-6x6-v0": {
         "num_layers": 3,
         "neurons_per_layer": 112,
     },
