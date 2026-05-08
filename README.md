@@ -36,6 +36,22 @@ You can also override optional settings such as the number of random trials, eva
 python ppo_mlp_sadt.py --env-id CartPole-v1 --actor sadt --random-trials 1 --sadt-max-depth 4 --render-env --track
 ```
 
+### SDT and D-SDT
+`sdt_ppo.py` uses `sdt_requirements.txt`.
+
+To run the SDT baseline, choose an environment with `--env-id` and set `--actor sdt`. The critic can be set with `--critic sdt` or `--critic mlp.` The script automatically applies all other environment-specific hyperparameters, which are defined in `sdt_ppo_config.py`.
+
+```bash
+python sdt_ppo.py --env-id CartPole-v1 --actor sdt --critic sdt
+```
+
+To train the SDT and then distill it into a D-SDT, run the same script with `--actor d-sdt`.
+
+```bash
+python sdt_ppo.py --env-id CartPole-v1 --actor d-sdt --critic sdt
+```
+```
+
 ## References
 ```
 @article{huang2022cleanrl,
