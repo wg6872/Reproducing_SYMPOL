@@ -50,7 +50,6 @@ To train the SDT and then distill it into a D-SDT, run the same script with `--a
 ```bash
 python sdt_ppo.py --env-id CartPole-v1 --actor d-sdt --critic sdt
 ```
-```
 
 ## References
 ```
